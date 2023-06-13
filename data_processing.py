@@ -31,7 +31,10 @@ class DatabaseManager:
             snowfall REAL,
             wind_speed REAL,
             atmospheric_pressure REAL,
-            cloud_coverage REAL
+            cloud_coverage REAL,
+            solar_flux REAL,
+            infrared_flux REAL
+            
         );
         CREATE TABLE IF NOT EXISTS observation (
             id INTEGER PRIMARY KEY,
@@ -88,7 +91,9 @@ def process_forecast_data(json_data, db_cursor):
         'sn': 'snowfall',
         'ws': 'wind_speed',
         'ap': 'atmospheric_pressure',
-        'cc': 'cloud_coverage'
+        'cc': 'cloud_coverage',
+        'sf': 'solar_flux',
+        'ir': 'infrared_flux'
     }
     process_data(json_data, db_cursor, 'forecast', field_mapping)
 

@@ -5,6 +5,24 @@ import pytz
 # 创建时区对象（协调世界时）
 utc_tz = pytz.timezone('UTC')
 
+# 缩写和数据库字段名的映射
+field_mapping = {
+    'data_time': 'data_time',
+    'at': 'air_temperature',
+    'td': 'dew_point',
+    'ra': 'rainfall',
+    'sn': 'snowfall',
+    'ws': 'wind_speed',
+    'ap': 'atmospheric_pressure',
+    'cc': 'cloud_coverage',
+    'sf': 'solar_flux',
+    'if': 'infrared_flux',
+    'pi': 'precipitation',
+    'sc': 'road_condition',
+    'st': 'road_surface_temperature',
+    'sst': 'road_subsurface_temperature'
+}
+
 class DatabaseManager:
     def __init__(self, db_file):
         self.db_file = db_file
@@ -22,30 +40,22 @@ class DatabaseManager:
     def create_tables(self):
         # 创建数据表的逻辑
         create_table_query = '''
-        CREATE TABLE IF NOT EXISTS forecast (
+        CREATE TABLE IF NOT EXISTS data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            forecast_time TEXT,
+            data_time TEXT,
             air_temperature REAL,
             dew_point REAL,
             rainfall REAL,
             snowfall REAL,
             wind_speed REAL,
             atmospheric_pressure REAL,
-            cloud_coverage REAL,
+            cloud_coverage INTEGER,
             solar_flux REAL,
-            infrared_flux REAL
-            
-        );
-        CREATE TABLE IF NOT EXISTS observation (
-            id INTEGER PRIMARY KEY,
-            observation_time TEXT,
-            air_temperature REAL,
-            dew_point_temperature REAL,
+            infrared_flux REAL,
             precipitation INTEGER,
-            wind_speed REAL,
             road_condition TEXT,
-            road_temperature REAL,
-            sub_road_temperature REAL
+            road_surface_temperature REAL,
+            road_subsurface_temperature REAL
         );
         '''
         self.cursor.executescript(create_table_query)
@@ -60,54 +70,24 @@ class DatabaseManager:
         if self.conn:
             self.conn.close()
 
-def process_data(json_data, db_cursor, table_name, field_mapping):
-    # 提取字段值
-    values = []
-    for field, column in field_mapping.items():
-        value = json_data.get(field)
-        if value is None:
-            value = 9999
-        values.append(value)
+def process_data(json_data, db_manager):
+    # 提取所有可能的缩写
+    all_abbreviations = list(field_mapping.keys())
+
+    # 提取接收到的字段值，如果字段没有在接收的数据中指定，那么将其值设为'9999'
+    values = [json_data.get(abbr, '9999') for abbr in all_abbreviations]
 
     # 将时间戳转换为 datetime 对象，并设置时区为协调世界时 (UTC)
-    dt = datetime.datetime.fromtimestamp(values[0] / 1000, tz=utc_tz)
+    dt = datetime.datetime.fromtimestamp(int(values[0]) / 1000, tz=utc_tz) if values[0] != '9999' else '9999'
 
     # 将 datetime 对象格式化为指定的字符串格式
-    formatted_time = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
+    formatted_time = dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt != '9999' else '9999'
+    
     # 构建插入查询语句
-    insert_query = f"INSERT INTO {table_name} ({', '.join(field_mapping.values())}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    fields = [field_mapping[abbr] for abbr in all_abbreviations]
+    placeholders = ', '.join(['?'] * len(fields))
+    insert_query = f"INSERT INTO data ({', '.join(fields)}) VALUES ({placeholders})"
 
     # 执行插入操作
-    db_cursor.execute(insert_query, (formatted_time, *values[1:]))
-
-# 在 process_forecast_data 函数中调用辅助函数
-def process_forecast_data(json_data, db_cursor):
-    field_mapping = {
-        'forecast_time': 'forecast_time',
-        'at': 'air_temperature',
-        'td': 'dew_point',
-        'ra': 'rainfall',
-        'sn': 'snowfall',
-        'ws': 'wind_speed',
-        'ap': 'atmospheric_pressure',
-        'cc': 'cloud_coverage',
-        'sf': 'solar_flux',
-        'ir': 'infrared_flux'
-    }
-    process_data(json_data, db_cursor, 'forecast', field_mapping)
-
-# 在 process_observation_data 函数中调用辅助函数
-def process_observation_data(json_data, db_cursor):
-    field_mapping = {
-        'observation_time': 'observation_time',
-        'at': 'air_temperature',
-        'td': 'dew_point_temperature',
-        'pi': 'precipitation',
-        'ws': 'wind_speed',
-        'sc': 'road_condition',
-        'st': 'road_temperature',
-        'sst': 'sub_road_temperature'
-    }
-    process_data(json_data, db_cursor, 'observation', field_mapping)
+    db_manager.cursor.execute(insert_query, (formatted_time, *values[1:]))
 

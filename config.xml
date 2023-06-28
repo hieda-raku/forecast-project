@@ -1,28 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config>
     <host>0.0.0.0</host>
-    <port>8000</port>
-    <database>
-        <type>sqlite</type>
-        <host>localhost</host>
-        <port>5432</port>
-        <user>user</user>
-        <password>password</password>
-    </database>
-    <logging>
-        <level>info</level>
-        <file>/var/log/app.log</file>
-    </logging>
-    <service>
-        <mode>production</mode>
-        <threads>4</threads>
-        <ssl>false</ssl>
-    </service>
-    <app>
-        <version>1.0.0</version>
-        <featureX>true</featureX>
-    </app>
-    <api>
-        <url>https://api.example.com</url>
-    </api>
+    <port>18120</port>
 </config>
+

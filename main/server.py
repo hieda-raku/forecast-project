@@ -2,8 +2,8 @@
 import socket
 import json
 import xml.etree.ElementTree as ET
-from database import DatabaseManager
-import database
+from database import DatabaseManager, DatabaseError
+import data_processing
 
 def main():
     # 读取XML配置文件
@@ -50,7 +50,7 @@ def main():
                     json_data = json.loads(data)
 
                     # 处理接收到的数据
-                    database.process_data(json_data, db_manager)
+                    data_processing.process_data(json_data, db_manager)
 
                     # 提交事务
                     db_manager.commit()
@@ -64,7 +64,7 @@ def main():
                 conn.close()
             except socket.error as e:
                 print('Socket error:', str(e))
-    except sqlite3.Error as e:
+    except DatabaseError as e:
         print('Database error:', str(e))
     finally:
         # 关闭服务器

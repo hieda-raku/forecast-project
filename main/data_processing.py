@@ -31,10 +31,10 @@ def process_data(json_data, db_manager):
     values = [json_data.get(abbr, '9999') for abbr in all_abbreviations]
 
     # 将时间戳转换为 datetime 对象，并设置时区为协调世界时 (UTC)
-    dt = datetime.datetime.fromtimestamp(int(values[0]) / 1000, tz=utc_tz) if values[0] != '9999' else '9999'
+    dt = datetime.datetime.fromtimestamp(int(values[0]) / 1000, tz=utc_tz)
 
     # 将 datetime 对象格式化为指定的字符串格式
-    formatted_time = dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt != '9999' else '9999'
+    formatted_time = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     
     # 构建插入查询语句
     fields = [field_mapping[abbr] for abbr in all_abbreviations]

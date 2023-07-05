@@ -31,7 +31,7 @@ class DatabaseManager:
                     name TEXT,
                     latitude REAL,
                     longitude REAL,
-                    road_type TEXT CHECK(road_type IN ('asphalt', 'gravel', 'sand')),
+                    road_type TEXT CHECK(road_type IN ('asphalt', 'gravel', 'sand'))
                 );
                 CREATE TABLE IF NOT EXISTS data (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -7,7 +7,7 @@ import data_processing
 
 def main():
     # 读取XML配置文件
-    tree = ET.parse('config.xml')
+    tree = ET.parse('main/config.xml')
     root = tree.getroot()
 
     # 获取服务器地址和端口号
@@ -22,6 +22,9 @@ def main():
 
     # 绑定服务器地址和端口号
     server_socket.bind((host, port))
+
+    # 设置服务器等待客户端连接的超时时间为 10 秒
+    server_socket.settimeout(10)
 
     # 监听连接
     server_socket.listen(5)
@@ -39,6 +42,7 @@ def main():
             try:
                 # 接收连接
                 conn, addr = server_socket.accept()
+                conn.settimeout(10)
                 print('Connected by', addr)
         
                 while True:
@@ -46,19 +50,27 @@ def main():
                     data = conn.recv(1024).decode('utf-8')
                     print('Send from', addr, 'Received data:', data)
         
-                    # 将接收到的数据解析为 JSON 对象
-                    json_data = json.loads(data)
+                    if not data:
+                        print("客户端已关闭连接")
+                        conn.close()
+                        break
+                    else:
+                        # 将接收到的数据解析为 JSON 对象
+                        json_data = json.loads(data)
 
-                    # 处理接收到的数据
-                    data_processing.process_data(json_data, db_manager)
+                        # 处理接收到的数据
+                        data_processing.process_data(json_data, db_manager)
 
-                    # 提交事务
-                    db_manager.commit()
-                    print('Data saved to database')
-        
-                    # 发送响应
-                    response = 'Data saved successfully'
-                    conn.sendall(response.encode('utf-8'))
+                        # 提交事务，将数据保存到数据库
+                        db_manager.commit()
+                        print('数据已保存到数据库')
+
+                        # 向客户端发送响应
+                        response = '数据已成功保存'
+                        conn.sendall(response.encode('utf-8'))
+            except socket.timeout:
+                print('超时。正在关闭连接。')
+                conn.close()
             except json.decoder.JSONDecodeError:
                 print('Invalid data received. Closing connection.')
                 conn.close()

@@ -28,10 +28,11 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS stations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     station_id TEXT UNIQUE,
-                    name TEXT,
+                    production_date TEXT,
                     latitude REAL,
                     longitude REAL,
-                    road_type TEXT CHECK(road_type IN ('asphalt', 'gravel', 'sand'))
+                    station_type TEXT CHECK(station_type IN('road','bridge')),
+                    road_layers TEXT
                 );
                 CREATE TABLE IF NOT EXISTS data (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

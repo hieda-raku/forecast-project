@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 # 导入自定义库
 from database import DatabaseManager, DatabaseError
 import data_processing
+from data_processing import process_station_data
 
 def main():
     """
@@ -28,9 +29,6 @@ def main():
     # 将服务器地址和端口号绑定到 Socket 对象
     server_socket.bind((host, port))
 
-    # 设置服务器等待客户端连接的超时时间为 10 秒
-    server_socket.settimeout(10)
-
     # 开始监听客户端的连接请求
     server_socket.listen(5)
     print('正在监听连接...')
@@ -44,12 +42,15 @@ def main():
 
         # 如果数据库中不存在表，则创建表
         db_manager.create_tables()
+        
+        xml_file = 'data/station.xml'
+        process_station_data(xml_file, db_manager)
 
         while True:
             try:
                 # 接收客户端的连接请求
                 conn, addr = server_socket.accept()
-                conn.settimeout(10)
+                conn.settimeout(30)
                 print('连接来自', addr)
 
                 while True:

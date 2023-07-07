@@ -10,6 +10,7 @@ utc_tz = pytz.timezone('UTC')
 # 缩写和数据库字段名的映射
 field_mapping = {
     'data_time': 'data_time',
+    'station_id': 'station_id',
     'at': 'air_temperature',
     'td': 'dew_point',
     'ra': 'rainfall',

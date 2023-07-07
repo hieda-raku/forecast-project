@@ -43,7 +43,7 @@ def main():
         # 如果数据库中不存在表，则创建表
         db_manager.create_tables()
         
-        xml_file = 'data/station.xml'
+        xml_file = 'station.xml'
         process_station_data(xml_file, db_manager)
 
         while True:

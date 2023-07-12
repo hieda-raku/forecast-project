@@ -13,9 +13,9 @@ def parse_and_send(xml_file, ip, port):
     # 遍历XML文件的元素并将其添加到字典中
     for child in root:
         if child.tag == 'header':
-            data['header'] = {grandchild.tag: grandchild.text for grandchild in child}
+            data.update({grandchild.tag: grandchild.text for grandchild in child if grandchild.tag not in ['version', 'latitude', 'longitude', 'filetype', 'first-roadcast']})
         elif child.tag == 'prediction-list':
-            data['prediction-list'] = [{grandchild.tag: grandchild.text for grandchild in child} for child in child]
+            data.update({grandchild.tag: grandchild.text for grandchild in child[0]})
 
     # 将字典转换为JSON字符串
     json_data = json.dumps(data)
@@ -33,4 +33,4 @@ def parse_and_send(xml_file, ip, port):
     s.close()
 
 # 测试代码
-parse_and_send('roadcast.xml', '127.0.0.1', 12345)
+parse_and_send('data/roadcast.xml', '192.168.3.161', 8899)

@@ -1,7 +1,9 @@
 import datetime
 import json
+import subprocess
 import xml.etree.ElementTree as ET
 from database import DatabaseManager, DatabaseError
+
 
 def generate_input_forecast_xml(db_file, station_id, output_file):
     # 连接数据库
@@ -10,7 +12,8 @@ def generate_input_forecast_xml(db_file, station_id, output_file):
 
     try:
         # 查询数据库获取数据
-        data = db_manager.cursor.execute("SELECT * FROM data WHERE station_id = ? ORDER BY data_time ASC", (station_id,)).fetchall()
+        data = db_manager.cursor.execute(
+            "SELECT * FROM data WHERE station_id = ? ORDER BY data_time ASC", (station_id,)).fetchall()
 
         if len(data) < 2:
             print("数据库中的数据不足，无法生成输入文件")
@@ -23,7 +26,8 @@ def generate_input_forecast_xml(db_file, station_id, output_file):
         header_element = ET.SubElement(root, "header")
 
         # 添加 production-date 元素
-        production_date_element = ET.SubElement(header_element, "production-date")
+        production_date_element = ET.SubElement(
+            header_element, "production-date")
         production_date_element.text = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
 
         # 添加 version 元素
@@ -44,10 +48,12 @@ def generate_input_forecast_xml(db_file, station_id, output_file):
         # 遍历数据生成 prediction 元素
         for row in data:
             # 创建 prediction 元素
-            prediction_element = ET.SubElement(prediction_list_element, "prediction")
+            prediction_element = ET.SubElement(
+                prediction_list_element, "prediction")
 
             # 添加 forecast-time 元素
-            forecast_time_element = ET.SubElement(prediction_element, "forecast-time")
+            forecast_time_element = ET.SubElement(
+                prediction_element, "forecast-time")
             forecast_time_element.text = row[2]
 
             # 添加具体的天气元素，使用从数据库中获取的数据
@@ -72,6 +78,7 @@ def generate_input_forecast_xml(db_file, station_id, output_file):
         if db_manager and db_manager.conn:
             db_manager.close()
 
+
 def generate_rwis_observation_xml(db_file, station_id, output_file):
     # 连接数据库
     db_manager = DatabaseManager(db_file)
@@ -79,7 +86,8 @@ def generate_rwis_observation_xml(db_file, station_id, output_file):
 
     try:
         # 查询数据库获取数据
-        data = db_manager.cursor.execute("SELECT * FROM data WHERE station_id = ? ORDER BY data_time ASC", (station_id,)).fetchall()
+        data = db_manager.cursor.execute(
+            "SELECT * FROM data WHERE station_id = ? ORDER BY data_time ASC", (station_id,)).fetchall()
 
         if len(data) < 1:
             print("数据库中没有相关数据，无法生成观测文件")
@@ -112,7 +120,8 @@ def generate_rwis_observation_xml(db_file, station_id, output_file):
             measure_element = ET.SubElement(measure_list_element, "measure")
 
             # 添加 observation-time 元素
-            observation_time_element = ET.SubElement(measure_element, "observation-time")
+            observation_time_element = ET.SubElement(
+                measure_element, "observation-time")
             observation_time_element.text = row[2]
 
             # 添加具体的观测元素，使用从数据库中获取的数据
@@ -137,6 +146,7 @@ def generate_rwis_observation_xml(db_file, station_id, output_file):
         if db_manager and db_manager.conn:
             db_manager.close()
 
+
 def generate_rwis_configuration_xml(db_file, station_id, output_file):
     # 连接数据库
     db_manager = DatabaseManager(db_file)
@@ -144,7 +154,8 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
 
     try:
         # 查询数据库获取数据
-        data = db_manager.cursor.execute("SELECT * FROM stations WHERE station_id = ?", (station_id,)).fetchone()
+        data = db_manager.cursor.execute(
+            "SELECT * FROM stations WHERE station_id = ?", (station_id,)).fetchone()
 
         if data is None:
             print("数据库中没有相关数据，无法生成配置文件")
@@ -169,7 +180,8 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
         road_station_element.text = data[1]
 
         # 添加 production-date 元素
-        production_date_element = ET.SubElement(header_element, "production-date")
+        production_date_element = ET.SubElement(
+            header_element, "production-date")
         production_date_element.text = data[2]
 
         # 创建 coordinate 元素
@@ -191,13 +203,15 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
         roadlayer_list_element = ET.SubElement(root, "roadlayer-list")
 
         # 查询数据库获取 road layers 数据
-        road_layers_json = db_manager.cursor.execute("SELECT road_layers FROM stations WHERE station_id = ?", (station_id,)).fetchone()[0]
+        road_layers_json = db_manager.cursor.execute(
+            "SELECT road_layers FROM stations WHERE station_id = ?", (station_id,)).fetchone()[0]
         road_layers_data = json.loads(road_layers_json)
 
         # 遍历数据生成 roadlayer 元素
         for road_layer in road_layers_data:
             # 创建 roadlayer 元素
-            roadlayer_element = ET.SubElement(roadlayer_list_element, "roadlayer")
+            roadlayer_element = ET.SubElement(
+                roadlayer_list_element, "roadlayer")
 
             # 添加 position 元素
             position_element = ET.SubElement(roadlayer_element, "position")
@@ -224,17 +238,13 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
         if db_manager and db_manager.conn:
             db_manager.close()
 
-# 测试代码
-db_file = "data/data.db"
-station_id = "test_station"
-output_file = "data/configuration.xml"
 
-generate_rwis_configuration_xml(db_file, station_id, output_file)
-
-output_file = "data/observation.xml"
-
-generate_rwis_observation_xml(db_file, station_id, output_file)
-
-output_file = "data/forecast.xml"
-
-generate_input_forecast_xml(db_file, station_id, output_file)
+def run_metro():
+    command = ["python3", "/home/hieda_raku/local/metro/usr/bin/metro", "--input-forecast", "/home/hieda_raku/local/workspace/forecast-project/data/forecast.xml", "--input-station", "/home/hieda_raku/local/workspace/forecast-project/data/configuration.xml",
+               "--input-observation", "/home/hieda_raku/local/workspace/forecast-project/data/observation.xml", "--output-roadcast", "/home/hieda_raku/local/workspace/forecast-project/data/roadcast.xml"]
+    try:
+        subprocess.run(command)
+        # subprocess.run(command, shell=True, check=True)
+        print("Metro命令执行成功！")
+    except subprocess.CalledProcessError as e:
+        print(f"Metro命令执行失败：{e}")

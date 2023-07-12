@@ -8,7 +8,7 @@ from database import DatabaseManager, DatabaseError
 import data_processing
 from data_processing import process_station_data
 
-def main():
+def server(db_lock):
     """
     主函数，从XML文件中获取服务器和数据库配置，然后开启服务器监听客户端连接，处理和保存数据
     """
@@ -65,14 +65,14 @@ def main():
                     else:
                         # 将接收到的数据解析为 JSON 对象
                         json_data = json.loads(data)
+                        # Acquire the lock before accessing the database
+                        with db_lock:
+                            # 处理接收到的数据
+                            data_processing.process_data(json_data, db_manager)
 
-                        # 处理接收到的数据
-                        data_processing.process_data(json_data, db_manager)
-
-                        # 提交事务，将数据保存到数据库
-                        db_manager.commit()
-                        print('数据已保存到数据库')
-
+                            # 提交事务，将数据保存到数据库
+                            db_manager.commit()
+                            print('数据已保存到数据库')
                         # 向客户端发送响应
                         response = '数据已成功保存'
                         conn.sendall(response.encode('utf-8'))
@@ -95,7 +95,3 @@ def main():
         # 关闭数据库连接
         if db_manager and db_manager.conn:
             db_manager.close()
-
-# 如果直接运行此脚本，则执行 main 函数
-if __name__ == "__main__":
-    main()

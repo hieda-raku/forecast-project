@@ -31,6 +31,3 @@ def parse_and_send(xml_file, ip, port):
 
     # 关闭连接
     s.close()
-
-# 测试代码
-parse_and_send('data/roadcast.xml', '192.168.3.161', 8899)

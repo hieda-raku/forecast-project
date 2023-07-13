@@ -26,7 +26,7 @@ field_mapping = {
     'sst': 'road_subsurface_temperature'
 }
 
-def process_data(json_data, db_manager):
+def process_json_data(json_data, db_manager):
     # 提取所有可能的缩写
     all_abbreviations = list(field_mapping.keys())
 
@@ -46,6 +46,44 @@ def process_data(json_data, db_manager):
 
     # 执行插入操作
     db_manager.cursor.execute(insert_query, (formatted_time, *values[1:]))
+
+def process_umb_data(hex_data,db_manager):
+    # 将十六进制数据拆分成单个字节
+    byte_list = hex_data.split()
+
+    # 提取前十二位数据并进行处理
+    front_data = byte_list[:12]
+    cannel_number = int(front_data[11],16)
+    del byte_list[:12]
+
+    # 提取最后四位数据并进行处理
+    end_data = byte_list[-4:]
+    del byte_list[-4:]
+
+    #循环处理byte_list里的数据，cannel_nuber-1的原因是最后一组数据上一步已经被提出来了
+    for _ in range(cannel_number):
+        datalan = int(byte_list[0],16)
+        byte_list.pop(0)
+        rawdata = byte_list[0:datalan]
+        errorcode = rawdata[0]
+        channel_dex = int(''.join(rawdata[1:3][::-1]), 16)
+        if errorcode == '00':
+            del rawdata[0:3]
+            print('通道'+str(channel_dex)+' 继续处理'+str(rawdata))
+            datatype = rawdata[0]
+            rawdata.pop(0)
+            if datatype == '11' or datatype == '10':
+                value_dex = int(rawdata[0],16)
+                print('一位'+str(value_dex))
+            else:
+                value_hex = ''.join(rawdata[::-1])
+                value_dex = struct.unpack('!f', bytes.fromhex(value_hex))[0]
+                print(value_dex)
+        else:
+            errorcode = int(errorcode,16)
+            print('通道'+str(channel_dex)+' 错误码：'+str(errorcode))
+        del byte_list[0:datalan]
+    
 
 def process_station_data(xml_file, db_manager):
     # 读取并解析 XML 文件

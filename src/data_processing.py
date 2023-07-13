@@ -2,6 +2,7 @@
 import datetime
 import json
 import pytz
+import struct
 import xml.etree.ElementTree as ET
 
 # 创建时区对象（协调世界时）

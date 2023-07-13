@@ -8,6 +8,10 @@ from database import DatabaseManager, DatabaseError
 import data_processing
 from data_processing import process_station_data
 
+def handle_registration(registration_data):
+    # 在这里处理接收到的注册包数据
+    print('接收到的注册包数据:', registration_data.decode('utf-8'))
+
 def server(db_lock):
     """
     主函数，从XML文件中获取服务器和数据库配置，然后开启服务器监听客户端连接，处理和保存数据
@@ -52,31 +56,66 @@ def server(db_lock):
                 conn, addr = server_socket.accept()
                 conn.settimeout(30)
                 print('连接来自', addr)
+                # 接收一次性注册包               
+                registration_data = conn.recv(1024)
+                handle_registration(registration_data)
+                # 初始化消息缓冲区和标志变量
+                message_buffer = b''
+                has_start = False
 
                 while True:
                     # 从客户端接收数据
-                    data = conn.recv(1024).decode('utf-8')
-                    print('发送自', addr, '接收到的数据:', data)
-
+                    data = conn.recv(4096)
                     if not data:
                         print("客户端已关闭连接")
                         conn.close()
                         break
-                    else:
+                    elif data.startswith(b'{'):
                         # 将接收到的数据解析为 JSON 对象
-                        json_data = json.loads(data)
+                        json_data = json.loads(data.decode('utf-8'))
                         # Acquire the lock before accessing the database
                         with db_lock:
                             # 处理接收到的数据
-                            data_processing.process_data(json_data, db_manager)
-
+                            data_processing.process_json_data(json_data, db_manager)
                             # 提交事务，将数据保存到数据库
                             db_manager.commit()
                             print('数据已保存到数据库')
                         # 向客户端发送响应
                         response = '数据已成功保存'
                         conn.sendall(response.encode('utf-8'))
-            # 处理可能出现的异常
+                    elif data.startswith(b'\x01') and data.endswith(b'\x04'):
+                        # 同时满足以 b'\x01' 开头和以 b'\x04' 结尾的数据
+                        # 处理这种数据
+                        umb_data = ' '.join([f'{byte:02X}' for byte in data])
+                        with db_lock:
+                            # 处理接收到的数据
+                            data_processing.process_umb_data(umb_data, db_manager)
+                            # 提交事务，将数据保存到数据库
+                            db_manager.commit()
+                            print('数据已保存到数据库')
+                    elif data.startswith(b'\x01'):
+                        # 以 b'\x01' 开头的数据，保存到消息缓冲区，并将标志变量设置为 True
+                        message_buffer = data
+                        has_start = True
+                    elif data.endswith(b'\x04') and has_start:
+                        # 以 b'\x04' 结尾的数据，拼接到消息缓冲区，并将标志变量设置为 False
+                        message_buffer += data
+                        umb_data = ' '.join([f'{byte:02X}' for byte in message_buffer])
+                        # 处理接收到的数据
+                        with db_lock:
+                            data_processing.process_umb_data(umb_data, db_manager)
+                            # 提交事务，将数据保存到数据库
+                            db_manager.commit()
+                            print('数据已保存到数据库')
+                        # 清空消息缓冲区和标志变量
+                        message_buffer = b''
+                        has_start = False
+                    else:
+                        # 未被识别的数据，直接丢弃
+                        pass
+                        # 或者输出一条提示信息
+                        # print("未被识别的数据，已丢弃")
+                            # 处理可能出现的异常
             except socket.timeout:
                 print('超时。正在关闭连接。')
                 conn.close()

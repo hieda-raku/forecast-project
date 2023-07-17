@@ -240,8 +240,7 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
 
 
 def run_metro():
-    command = ["python3", "/home/hieda_raku/local/metro/usr/bin/metro", "--input-forecast", "/home/hieda_raku/local/workspace/forecast-project/data/forecast.xml", "--input-station", "/home/hieda_raku/local/workspace/forecast-project/data/configuration.xml",
-               "--input-observation", "/home/hieda_raku/local/workspace/forecast-project/data/observation.xml", "--output-roadcast", "/home/hieda_raku/local/workspace/forecast-project/data/roadcast.xml"]
+    command = ["python3", "/root/workspace/metro/usr/bin/metro", "--input-forecast", "/root/workspace/forecast-project/data/forecast.xml", "--input-station", "/home/hieda_raku/local/workspace/forecast-project/data/configuration.xml","--input-observation", "/root/workspace/forecast-project/data/observation.xml", "--output-roadcast", "/root/workspace/forecast-project/data/roadcast.xml"]
     try:
         subprocess.run(command)
         # subprocess.run(command, shell=True, check=True)

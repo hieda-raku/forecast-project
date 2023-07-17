@@ -8,9 +8,13 @@ from database import DatabaseManager, DatabaseError
 import data_processing
 from data_processing import process_station_data
 
+registered_station_id = None
+
 def handle_registration(registration_data):
     # 在这里处理接收到的注册包数据
-    print('接收到的注册包数据:', registration_data.decode('utf-8'))
+    global registered_station_id
+    registered_station_id = registration_data.decode('utf-8')
+    print(registered_station_id)
 
 def server(db_lock):
     """
@@ -70,26 +74,13 @@ def server(db_lock):
                         print("客户端已关闭连接")
                         conn.close()
                         break
-                    elif data.startswith(b'{'):
-                        # 将接收到的数据解析为 JSON 对象
-                        json_data = json.loads(data.decode('utf-8'))
-                        # Acquire the lock before accessing the database
-                        with db_lock:
-                            # 处理接收到的数据
-                            data_processing.process_json_data(json_data, db_manager)
-                            # 提交事务，将数据保存到数据库
-                            db_manager.commit()
-                            print('数据已保存到数据库')
-                        # 向客户端发送响应
-                        response = '数据已成功保存'
-                        conn.sendall(response.encode('utf-8'))
                     elif data.startswith(b'\x01') and data.endswith(b'\x04'):
                         # 同时满足以 b'\x01' 开头和以 b'\x04' 结尾的数据
                         # 处理这种数据
                         umb_data = ' '.join([f'{byte:02X}' for byte in data])
                         with db_lock:
                             # 处理接收到的数据
-                            data_processing.process_umb_data(umb_data, db_manager)
+                            data_processing.process_umb_data(umb_data, db_manager,registration_data)
                             # 提交事务，将数据保存到数据库
                             db_manager.commit()
                             print('数据已保存到数据库')
@@ -103,7 +94,7 @@ def server(db_lock):
                         umb_data = ' '.join([f'{byte:02X}' for byte in message_buffer])
                         # 处理接收到的数据
                         with db_lock:
-                            data_processing.process_umb_data(umb_data, db_manager)
+                            data_processing.process_umb_data(umb_data, db_manager,registration_data)
                             # 提交事务，将数据保存到数据库
                             db_manager.commit()
                             print('数据已保存到数据库')
@@ -111,10 +102,7 @@ def server(db_lock):
                         message_buffer = b''
                         has_start = False
                     else:
-                        # 未被识别的数据，直接丢弃
-                        pass
-                        # 或者输出一条提示信息
-                        # print("未被识别的数据，已丢弃")
+                        print("未被识别的数据，已丢弃")
                             # 处理可能出现的异常
             except socket.timeout:
                 print('超时。正在关闭连接。')

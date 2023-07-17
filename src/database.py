@@ -50,8 +50,7 @@ class DatabaseManager:
                     precipitation INTEGER,
                     road_condition TEXT,
                     road_surface_temperature REAL,
-                    road_subsurface_temperature REAL,
-                    FOREIGN KEY (station_id) REFERENCES stations (station_id)
+                    road_subsurface_temperature REAL
                 );
             '''
 

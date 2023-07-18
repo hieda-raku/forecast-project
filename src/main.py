@@ -11,7 +11,7 @@ def server_thread():
 def processing_thread():
     # 等待4小时后开始处理
     time.sleep(4 * 60 * 60)
-    db_file = "data/data.db"
+    db_file = "data/data.sqlite" 
     station_id = "test_station"
     while True:
         with db_lock:

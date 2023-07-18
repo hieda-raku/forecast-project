@@ -1,20 +1,13 @@
 # 导入必要的库
+import base64
 import socket
 import json
 import xml.etree.ElementTree as ET
 
 # 导入自定义库
 from database import DatabaseManager, DatabaseError
-import data_processing
 from data_processing import process_station_data
-
-registered_station_id = None
-
-def handle_registration(registration_data):
-    # 在这里处理接收到的注册包数据
-    global registered_station_id
-    registered_station_id = registration_data.decode('utf-8')
-    print(registered_station_id)
+from data_processing import process_umb_data
 
 def server(db_lock):
     """
@@ -62,7 +55,7 @@ def server(db_lock):
                 print('连接来自', addr)
                 # 接收一次性注册包               
                 registration_data = conn.recv(1024)
-                handle_registration(registration_data)
+                registered_station_id = registration_data.decode('utf-8')
                 # 初始化消息缓冲区和标志变量
                 message_buffer = b''
                 has_start = False
@@ -80,10 +73,9 @@ def server(db_lock):
                         umb_data = ' '.join([f'{byte:02X}' for byte in data])
                         with db_lock:
                             # 处理接收到的数据
-                            data_processing.process_umb_data(umb_data, db_manager,registration_data)
+                            process_umb_data(umb_data, db_manager,registered_station_id)
                             # 提交事务，将数据保存到数据库
                             db_manager.commit()
-                            print('数据已保存到数据库')
                     elif data.startswith(b'\x01'):
                         # 以 b'\x01' 开头的数据，保存到消息缓冲区，并将标志变量设置为 True
                         message_buffer = data
@@ -94,10 +86,9 @@ def server(db_lock):
                         umb_data = ' '.join([f'{byte:02X}' for byte in message_buffer])
                         # 处理接收到的数据
                         with db_lock:
-                            data_processing.process_umb_data(umb_data, db_manager,registration_data)
+                            process_umb_data(umb_data, db_manager,registered_station_id)
                             # 提交事务，将数据保存到数据库
                             db_manager.commit()
-                            print('数据已保存到数据库')
                         # 清空消息缓冲区和标志变量
                         message_buffer = b''
                         has_start = False

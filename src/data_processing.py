@@ -172,6 +172,7 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
                     values[all_abbreviations.index(abbr)] = data[field_name]
                 else:
                     values[all_abbreviations.index(abbr)] = '9999'
+
         # 构建插入查询语句
         fields = ', '.join([field_mapping[abbr] for abbr in all_abbreviations])
         placeholders = ', '.join(['?'] * len(all_abbreviations))
@@ -179,6 +180,8 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
 
         # 执行插入操作
         db_manager.cursor.execute(insert_query, values)
+        # 提交事务
+        db_manager.commit()
 
         # 清空数据列表以便存储下一对数据
         data_list = []
@@ -188,6 +191,7 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
 
     # 将新的设备ID设置为上一次的设备ID
     last_device_id = new_device_id
+
 
 def process_json_data(json_data, db_manager):
     # 提取所有可能的缩写

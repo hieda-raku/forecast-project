@@ -14,7 +14,7 @@ def server(db_lock):
     主函数，从XML文件中获取服务器和数据库配置，然后开启服务器监听客户端连接，处理和保存数据
     """
     # 读取XML配置文件以获取服务器配置信息
-    tree = ET.parse('forecast-project/config.xml')
+    tree = ET.parse('config.xml')
     root = tree.getroot()
 
     # 获取服务器地址和端口号

@@ -28,30 +28,49 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS stations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     station_id TEXT UNIQUE,
+                    station_city TEXT,
                     production_date TEXT,
                     latitude REAL,
                     longitude REAL,
                     station_type TEXT CHECK(station_type IN('road','bridge')),
                     road_layers TEXT
                 );
-                CREATE TABLE IF NOT EXISTS data (
+                CREATE TABLE IF NOT EXISTS observation (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     station_id TEXT,
                     data_time TEXT,
                     air_temperature REAL,
-                    dew_point REAL,
-                    rainfall REAL,
-                    snowfall REAL,
-                    wind_speed REAL,
+                    dewpoint_temperature REAL,
+                    humidity REAL,
                     atmospheric_pressure REAL,
-                    cloud_coverage INTEGER,
-                    solar_flux REAL,
-                    infrared_flux REAL,
-                    precipitation INTEGER,
-                    road_condition TEXT,
+                    wind_speed REAL,
+                    wind_direction REAL,
+                    absolute_precipitation REAL,
+                    realitive_precipitation REAL,
+                    rainfall_intensity REAL,
                     road_surface_temperature REAL,
-                    road_subsurface_temperature REAL,
+                    freezing_point REAL,
+                    water_film_height REAL,
+                    saline_concent REAL,
+                    ice_percentage REAL,
+                    friction REAL,
+                    road_condition TEXT,
                     FOREIGN KEY (station_id) REFERENCES stations (station_id)
+                );
+                CREATE TABLE IF NOT EXISTS forecast (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    update_time TEXT,
+                    forecast_time TEXT,
+                    data_time TEXT,
+                    forecast_city TEXT,
+                    weather_code TEXT,
+                    forecast_temperature REAL,
+                    wind_speed REAL,
+                    wind_direction REAL,
+                    relative_humidity REAL,
+                    precipitation REAL,
+                    atmospheric_pressure REAL,
+                    cloud_cover REAL,
                 );
             '''
 

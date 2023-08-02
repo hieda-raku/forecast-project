@@ -13,44 +13,40 @@ last_device_id = None
 utc_tz = pytz.timezone('UTC')
 
 road_condition_mapping = {
-    10: 1,  # 干
-    15: 2,  # 潮
-    20: 2,  # 湿
-    25: 2,  # 潮
-    30: 2,  # 湿
-    35: 3,  # 冰
-    40: 3,  # 雪
-    45: 7,  # 霜
+    10: 33,  # 干
+    15: 34,  # 潮
+    20: 34,  # 湿
+    25: 34,  # 潮
+    30: 34,  # 湿
+    35: 35,  # 冰
+    40: 35,  # 雪
+    45: 40,  # 霜
 }
 
 #UMB通道对应值
 channel_to_field = {
-    100: 'air_temperature',
-    110: 'dew_point',
-    300: 'atmospheric_pressure',
-    401: 'wind_speed',
-    820: 'rainfall',
-    101: 'road_surface_temperature',
-    900: 'road_condition',
-}
-
-# 缩写和数据库字段名的映射
-field_mapping = {
-    'station_id': 'station_id',
-    'data_time': 'data_time',
-    'at': 'air_temperature',
-    'td': 'dew_point',
-    'ra': 'rainfall',
-    'sn': 'snowfall',
-    'ws': 'wind_speed',
-    'ap': 'atmospheric_pressure',
-    'cc': 'cloud_coverage',
-    'sf': 'solar_flux',
-    'if': 'infrared_flux',
-    'pi': 'precipitation',
-    'sc': 'road_condition',
-    'st': 'road_surface_temperature',
-    'sst': 'road_subsurface_temperature'
+    7:
+        {
+            100: 'air_temperature',
+            110: 'dewpoint_temperature',
+            200: 'humidity',
+            300: 'atmospheric_pressure',
+            401: 'wind_speed',
+            501: 'wind_direction',
+            620: 'absolute_precipitation',
+            625: 'realitive_precipitation',
+            820: 'rainfall_intensity',
+        },
+    9:
+        {
+            101: 'road_surface_temperature',
+            151: 'freezing_point',
+            601: 'water_film_height',
+            801: 'saline_concent',
+            810: 'ice_percentage',
+            820: 'friction',
+            900: 'road_condition',
+        }
 }
 
 def process_umb_data(hex_data,db_manager,registered_station_id):
@@ -67,14 +63,13 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
     cannel_number = int(front_data[11], 16)
 
     # 获取新的设备ID
-    new_device_id = front_data[5][0]
+    new_device_id = int(front_data[5][0],16)
+    # 移除前12位
+    byte_list = byte_list[12:]
 
-    # 删除前12位
-    del byte_list[:12]
-
-    # 将最后四位存入end_data并删除之
+    # 将最后四位存入end_data并移除之
     end_data = byte_list[-4:]
-    del byte_list[-4:]
+    byte_list = byte_list[:-4]
 
     # 循环处理byte_list里剩余的的数据组
     # 通道数代表需要循环的次数
@@ -84,7 +79,7 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
         datalan = int(byte_list[0], 16)
 
         # 为了保证后续处理将其弹出
-        byte_list.pop(0)
+        byte_list = byte_list[1:]
 
         # 切片数据长度位的数据组进入rawdata以供后续处理
         rawdata = byte_list[0:datalan]
@@ -110,83 +105,51 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
             '''
                 判断数据类型，如果是一位，则不需要改变排序，
                 如果是一位以上，则需要反转列表再转化为目标类型数据，
-                目前只有浮点数，先只处理为浮点数            '''
+                目前只有浮点数，先只处理为浮点数            
+            '''
             if datatype == '11' or datatype == '10':
-                value_dex = int(rawdata[0], 16)
-                data_list.append({'channel': channel_dex, 'value': value_dex})
+                field_name = channel_to_field[new_device_id].get(channel_dex, None)
+                value_dex = road_condition_mapping[int(rawdata[0], 16)]
+                data_list.append({field_name: value_dex})
             else:
                 value_hex = ''.join(rawdata[::-1])
+                field_name = channel_to_field[new_device_id].get(channel_dex, None)
                 value_dex = round(struct.unpack('!f', bytes.fromhex(value_hex))[0], 2)
-                data_list.append({'channel': channel_dex, 'value': value_dex})
+                data_list.append({field_name: value_dex})
 
         # 如果报错则直接输出错误码
         else:
             errorcode = int(errorcode, 16)
-            data_list.append({'channel': channel_dex, 'errorcode': errorcode})
+            field_name = channel_to_field[new_device_id].get(channel_dex, None)
+            data_list.append({field_name : 9999})
 
         # 从byte_list里弹出处理完的数据组，进入下一个循环处理下一个数据组
         del byte_list[0:datalan]
 
-    if new_device_id == '9' and last_device_id == '7':
-        for data in data_list:
-            channel = data['channel']
-            value = data.get('value')
-            errorcode = data.get('errorcode')
-
-            # 检查是否存在错误码
-            if errorcode is not None:
-                # 如果存在错误码，那么将 'value' 的值设置为 9999
-                data['value'] = 9999
-                continue  # 跳过当前循环
-
-            # 检查通道是否在字典中
-            if channel in channel_to_field:
-                # 如果通道在字典中，那么处理并存储这个通道的数据
-                field_name = channel_to_field[channel]
-                if channel == 900:
-                    # 如果通道是 900（路面状况），那么使用映射来转换值
-                    value = road_condition_mapping.get(value, value)
-
-                # 将处理后的数据添加到列表中
-                data[field_name] = value
-                
-        # 提取所有可能的缩写
-        all_abbreviations = list(field_mapping.keys())
-
-        # 创建一个与 all_abbreviations 长度相同的 values 列表，并初始化为 None
-        values = [None] * len(all_abbreviations)
-
+    if new_device_id == 9 and last_device_id == 7:
+        #对正确数据组进行处理
+        print(data_list)
+        # 转换数据列表为字典
+        data_list = {k: v for item in data_list for k, v in item.items()}
         # 添加 station_id 到值列表中
-        values[all_abbreviations.index('station_id')] = registered_station_id
+        data_list['station_id']  = registered_station_id
 
         # 添加 data_time 到值列表中
         current_time = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        values[all_abbreviations.index('data_time')] = current_time
-        
-        # 提取接收到的字段值，如果通道没有在接收的数据中指定，那么将其值设为 '9999'
-        for abbr in all_abbreviations:
-            if abbr != 'data_time' and abbr != 'station_id':
-                field_name = field_mapping[abbr]
-                data = next((data for data in data_list if field_name in data), None)
-                if data:
-                    values[all_abbreviations.index(abbr)] = data[field_name]
-                else:
-                    values[all_abbreviations.index(abbr)] = '9999'
-
+        data_list['data_time'] = current_time
         # 构建插入查询语句
-        fields = ', '.join([field_mapping[abbr] for abbr in all_abbreviations])
-        placeholders = ', '.join(['?'] * len(all_abbreviations))
-        insert_query = f"INSERT INTO data ({fields}) VALUES ({placeholders})"
+        fields = ', '.join(data_list.keys())
+        placeholders = ', '.join(['?'] * len(data_list))
+        insert_query = f"INSERT INTO observation ({fields}) VALUES ({placeholders})"
 
         # 执行插入操作
-        db_manager.cursor.execute(insert_query, values)
+        db_manager.cursor.execute(insert_query, list(data_list.values()))
         # 提交事务
         db_manager.commit()
-
         # 清空数据列表以便存储下一对数据
         data_list = []
     elif new_device_id ==  last_device_id :
-        # 清空数据列表以便存储下一对数据
+        # 清空错误数据列表以便存储下一对数据
         data_list = []
 
     # 将新的设备ID设置为上一次的设备ID

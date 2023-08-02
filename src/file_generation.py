@@ -85,9 +85,14 @@ def generate_rwis_observation_xml(db_file, station_id, output_file):
     db_manager.connect()
 
     try:
-        # 查询数据库获取数据
+        # 计算12小时之前的时间戳
+        time_threshold = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+        time_threshold_str = time_threshold.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # 查询数据库获取过去12个小时内的数据
         data = db_manager.cursor.execute(
-            "SELECT * FROM data WHERE station_id = ? ORDER BY data_time ASC", (station_id,)).fetchall()
+            "SELECT * FROM observation WHERE station_id = ? AND data_time >= ? ORDER BY data_time ASC",
+            (station_id, time_threshold_str)).fetchall()
 
         if len(data) < 1:
             print("数据库中没有相关数据，无法生成观测文件")
@@ -127,11 +132,14 @@ def generate_rwis_observation_xml(db_file, station_id, output_file):
             # 添加具体的观测元素，使用从数据库中获取的数据
             ET.SubElement(measure_element, "at").text = str(row[3])
             ET.SubElement(measure_element, "td").text = str(row[4])
-            ET.SubElement(measure_element, "pi").text = str(row[12])
+            if row[10] == 0 :
+                ET.SubElement(measure_element, "pi").text = '0'
+            else:
+                ET.SubElement(measure_element, "pi").text = '1'
             ET.SubElement(measure_element, "ws").text = str(row[7])
-            ET.SubElement(measure_element, "sc").text = str(row[13])
-            ET.SubElement(measure_element, "st").text = str(row[14])
-            ET.SubElement(measure_element, "sst").text = str(row[15])
+            ET.SubElement(measure_element, "sc").text = str(row[18])
+            ET.SubElement(measure_element, "st").text = str(row[12])
+            ET.SubElement(measure_element, "sst").text = str(row[12])
 
         # 创建 XML 树并保存到文件
         xml_tree = ET.ElementTree(root)

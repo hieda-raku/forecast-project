@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config>
+    <!--服务器设置-->
     <host>0.0.0.0</host>
     <port>18120</port>
     <db_file>data/data.sqlite</db_file>
+    <!--预测数据-->
+    <areacode>101120712</areacode>
+    <hours>8</hours>
+    <key>your_key_here</key>
+    <output_type>xml</output_type>
 </config>

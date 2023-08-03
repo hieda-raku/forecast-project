@@ -4,20 +4,21 @@
 <header>
       <filetype>rwis-configuration</filetype>
       <version>1.0</version>
-      <road-station>RLfreeway</road-station>
-      <production-date>2023-07-06T00:00Z</production-date>
+      <road_station>RLfreeway</road_station>
+      <station_city></station_city>
+      <production_date>2023-07-06T00:00Z</production_date>
       <coordinate>
           <latitude>31.31</latitude>
           <longitude>121.61</longitude>
       </coordinate>
-      <station-type>road</station-type>
+      <station_type>road</station_type>
 </header>
 
-  <roadlayer-list>
+  <roadlayer_list>
       <roadlayer>
           <position>1</position>
           <type>asphalt</type>
           <thickness>0.25</thickness>
       </roadlayer>
-  </roadlayer-list>
+  </roadlayer_list>
 </station>

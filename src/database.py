@@ -61,7 +61,6 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     update_time TEXT,
                     forecast_time TEXT,
-                    data_time TEXT,
                     forecast_city TEXT,
                     weather_code TEXT,
                     forecast_temperature REAL,
@@ -70,7 +69,7 @@ class DatabaseManager:
                     relative_humidity REAL,
                     precipitation REAL,
                     atmospheric_pressure REAL,
-                    cloud_cover REAL,
+                    cloud_cover REAL
                 );
             '''
 

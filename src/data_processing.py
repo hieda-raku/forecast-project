@@ -9,8 +9,8 @@ import xml.etree.ElementTree as ET
 data_list = []
 last_device_id = None
 
-# 创建时区对象（协调世界时）
-utc_tz = pytz.timezone('UTC')
+# 创建北京时区对象
+beijing_tz = pytz.timezone('Asia/Shanghai')
 
 road_condition_mapping = {
     10: 33,  # 干
@@ -134,9 +134,15 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
         # 添加 station_id 到值列表中
         data_list['station_id']  = registered_station_id
 
-        # 添加 data_time 到值列表中
-        current_time = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        data_list['data_time'] = current_time
+        # 获取当前UTC时间
+        current_utc_time = datetime.datetime.utcnow()
+
+        # 将当前UTC时间转换为北京时间
+        current_beijing_time = current_utc_time.replace(tzinfo=pytz.utc).astimezone(beijing_tz)
+
+        # 将时间格式化为ISO 8601格式的字符串
+        current_time_str = current_beijing_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        data_list['data_time'] = current_time_str
         # 构建插入查询语句
         fields = ', '.join(data_list.keys())
         placeholders = ', '.join(['?'] * len(data_list))
@@ -183,13 +189,14 @@ def process_station_data(xml_file, db_manager):
     root = tree.getroot()
 
     # 提取所需的数值
-    road_station = root.find('header/road-station').text
-    production_date = root.find('header/production-date').text
+    road_station = root.find('header/road_station').text
+    station_city = root.find('header/station_city').text
+    production_date = root.find('header/production_date').text
     latitude = float(root.find('header/coordinate/latitude').text)
     longitude = float(root.find('header/coordinate/longitude').text)
-    station_type = root.find('header/station-type').text
+    station_type = root.find('header/station_type').text
 
-    roadlayers = root.findall('roadlayer-list/roadlayer')
+    roadlayers = root.findall('roadlayer_list/roadlayer')
     road_layers_data = []
 
     for roadlayer in roadlayers:
@@ -216,8 +223,8 @@ def process_station_data(xml_file, db_manager):
         return
 
     # 将数据插入数据库
-    db_manager.cursor.execute("INSERT INTO stations (station_id, production_date, latitude, longitude, station_type, road_layers) VALUES (?, ?, ?, ?, ?, ?)",
-                              (road_station, production_date, latitude, longitude, station_type, road_layers_json))
+    db_manager.cursor.execute("INSERT INTO stations (station_id,station_city,production_date, latitude, longitude, station_type, road_layers) VALUES (?, ?, ?, ?, ?, ?,?)",
+                              (road_station, station_city,production_date, latitude, longitude, station_type, road_layers_json))
     db_manager.commit()
 
     print(f"站点 {road_station} 的记录已成功插入数据库")

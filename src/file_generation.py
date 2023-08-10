@@ -1,19 +1,39 @@
 import datetime
+import math
 import json
 import subprocess
 import xml.etree.ElementTree as ET
 from database import DatabaseManager, DatabaseError
 
 
-def generate_input_forecast_xml(db_file, station_id, output_file):
+def calculate_dew_point(temperature, humidity):
+    A = 17.27
+    B = 237.7
+    alpha = ((A * temperature) / (B + temperature)) + math.log(humidity/100.0)
+    dew_point = (B * alpha) / (A - alpha)
+    return round(dew_point, 2)
+
+def generate_input_forecast_xml(db_file, station_id, forecast_city, output_file):
     # 连接数据库
     db_manager = DatabaseManager(db_file)
     db_manager.connect()
 
     try:
+        # 获取当前时间
+        current_time = datetime.datetime.now()
+
+        # 找到最接近当前时间的整点时间
+        current_hour = current_time.replace(minute=0, second=0, microsecond=0)
+
+        # 将整点时间格式化为与数据库中的时间格式相匹配的字符串
+        start_time = current_hour.strftime("%Y-%m-%d %H:%M:%S")
+
         # 查询数据库获取数据
-        data = db_manager.cursor.execute(
-            "SELECT * FROM data WHERE station_id = ? ORDER BY data_time ASC", (station_id,)).fetchall()
+        query = """SELECT * FROM forecast 
+                WHERE forecast_time >= ? AND forecast_city = ? 
+                ORDER BY forecast_time ASC"""
+        data = db_manager.cursor.execute(query, (start_time, forecast_city)).fetchall()
+
 
         if len(data) < 2:
             print("数据库中的数据不足，无法生成输入文件")
@@ -57,13 +77,22 @@ def generate_input_forecast_xml(db_file, station_id, output_file):
             forecast_time_element.text = row[2]
 
             # 添加具体的天气元素，使用从数据库中获取的数据
-            ET.SubElement(prediction_element, "at").text = str(row[3])
-            ET.SubElement(prediction_element, "td").text = str(row[4])
-            ET.SubElement(prediction_element, "ra").text = str(row[5])
-            ET.SubElement(prediction_element, "sn").text = str(row[6])
-            ET.SubElement(prediction_element, "ws").text = str(row[7])
-            ET.SubElement(prediction_element, "ap").text = str(row[8])
-            ET.SubElement(prediction_element, "cc").text = str(row[9])
+            temperature = int(row[5])
+            humidity = int(row[8])
+            #空气温度
+            ET.SubElement(prediction_element, "at").text = str(temperature)
+            #计算露点温度
+            ET.SubElement(prediction_element, "td").text = str(calculate_dew_point(temperature, humidity))
+            #降雨量
+            ET.SubElement(prediction_element, "ra").text = str(row[9])
+            # 降雪量，需要先判定是否有降雪,然后暂时用降雨量代替
+            ET.SubElement(prediction_element, "sn").text = str(row[9])
+            #风速
+            ET.SubElement(prediction_element, "ws").text = str(row[6])
+            #大气压
+            ET.SubElement(prediction_element, "ap").text = str(row[10])
+            #云量
+            ET.SubElement(prediction_element, "cc").text = str(int(row[11]))
 
         # 创建 XML 树并保存到文件
         xml_tree = ET.ElementTree(root)
@@ -77,8 +106,7 @@ def generate_input_forecast_xml(db_file, station_id, output_file):
     finally:
         if db_manager and db_manager.conn:
             db_manager.close()
-
-
+ 
 def generate_rwis_observation_xml(db_file, station_id, output_file):
     # 连接数据库
     db_manager = DatabaseManager(db_file)

@@ -1,23 +1,21 @@
 import requests
+import time
+from datetime import datetime
+from pytz import timezone
 from database import DatabaseManager
 from xml.etree import ElementTree as ET
 
-areacode = '101120712'
-hours = '8'
-key = 'key'
-output_type = 'xml'
-
 # 创建数据库管理器
-db_manager = DatabaseManager('test.db')
+db_manager = DatabaseManager('./data/data.sqlite')
 
 #连接数据库
 db_manager.connect()
 
+beijing_tz = timezone('Asia/Shanghai')
 
 def get_forecast_data(db_manager):
-
     # 读取XML配置文件
-    tree = ET.parse('config.xml')
+    tree = ET.parse('./src/config.xml')
     root = tree.getroot()
     
     # 获取预报地代码，预报时长，秘钥和输出类型
@@ -35,14 +33,13 @@ def get_forecast_data(db_manager):
     }
     response = requests.get(url, params=params)
     response.encoding = 'utf-8'
-    data = response.text    
+    data = response.text  
     insert_forecast_data(data,db_manager)
 
 
 def insert_forecast_data(xml_data, db_manager):
     # 解析XML数据
     root = ET.fromstring(xml_data)
-
     # 获取更新时间
     update_time = root.find(".//last_update").text
 
@@ -53,7 +50,13 @@ def insert_forecast_data(xml_data, db_manager):
     hourly_forecasts = root.findall(".//hourly_fcst")
     for forecast in hourly_forecasts:
         # 提取所需的数据
-        forecast_time = forecast.find("data_time").text
+
+        #处理时间数据
+        given_time_str  = forecast.find("data_time").text
+        given_time  = datetime.strptime(given_time_str, "%Y-%m-%d %H:%M:%S")
+        given_time_with_tz = beijing_tz.localize(given_time)
+        forecast_time = given_time_with_tz.strftime("%Y-%m-%dT%H:%M:%S%z")
+
         weather_code = forecast.find("code").text
         forecast_temperature = float(forecast.find("temp_fc").text)
         wind_speed = float(forecast.find("wind_speed").text)
@@ -61,26 +64,52 @@ def insert_forecast_data(xml_data, db_manager):
         relative_humidity = float(forecast.find("rh").text)
         precipitation = float(forecast.find("prec").text)
         cloud_cover = int(forecast.find("clouds").text) * 8 // 100  # 转换为八分量
+        atmospheric_pressure = float(forecast.find("pressure").text)  # 从XML中提取大气压力
 
+        # 检查是否已经存在具有相同预报时间的记录
+        existing_record = db_manager.cursor.execute(
+            "SELECT * FROM forecast WHERE forecast_time = ? AND forecast_city = ?", (forecast_time, forecast_city)
+        ).fetchone()
 
-        # 构建插入查询
-        insert_query = '''
-            INSERT INTO forecast (
+        if existing_record:
+            # 如果存在，则更新记录
+            update_query = '''
+                UPDATE forecast SET
+                    update_time = ?,
+                    weather_code = ?,
+                    forecast_temperature = ?,
+                    wind_speed = ?,
+                    wind_direction = ?,
+                    relative_humidity = ?,
+                    precipitation = ?,
+                    atmospheric_pressure = ?,
+                    cloud_cover = ?
+                WHERE forecast_time = ? AND forecast_city = ?
+            '''
+            values = (
+                update_time, weather_code,
+                forecast_temperature, wind_speed, wind_direction,
+                relative_humidity, precipitation, atmospheric_pressure, cloud_cover,
+                forecast_time, forecast_city
+            )
+            db_manager.cursor.execute(update_query, values)
+        else:
+            # 如果不存在，则插入新记录
+            insert_query = '''
+                INSERT INTO forecast (
+                    update_time, forecast_time, forecast_city, weather_code,
+                    forecast_temperature, wind_speed, wind_direction,
+                    relative_humidity, precipitation, atmospheric_pressure, cloud_cover
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            '''
+            values = (
                 update_time, forecast_time, forecast_city, weather_code,
                 forecast_temperature, wind_speed, wind_direction,
-                relative_humidity, precipitation, cloud_cover
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        '''
-        values = (
-            update_time, forecast_time, forecast_city, weather_code,
-            forecast_temperature, wind_speed, wind_direction,
-            relative_humidity, precipitation, cloud_cover
-        )
-
-        # 执行插入操作
-        db_manager.cursor.execute(insert_query, values)
+                relative_humidity, precipitation, atmospheric_pressure, cloud_cover
+            )
+            db_manager.cursor.execute(insert_query, values)
 
     # 提交事务
     db_manager.commit()
 
-get_forecast_data(areacode,hours,key,output_type,db_manager)
+get_forecast_data(db_manager)

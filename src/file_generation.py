@@ -275,11 +275,15 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
             db_manager.close()
 
 
-def run_metro():
-    command = ["python3", "/root/workspace/metro/usr/bin/metro", "--input-forecast", "/root/workspace/forecast-project/data/forecast.xml", "--input-station", "/home/hieda_raku/local/workspace/forecast-project/data/configuration.xml","--input-observation", "/root/workspace/forecast-project/data/observation.xml", "--output-roadcast", "/root/workspace/forecast-project/data/roadcast.xml"]
-    try:
-        subprocess.run(command)
-        # subprocess.run(command, shell=True, check=True)
-        print("Metro命令执行成功！")
-    except subprocess.CalledProcessError as e:
-        print(f"Metro命令执行失败：{e}")
+def run_metro(station_id):
+    command = ["python3", 
+               "/root/workspace/metro/usr/bin/metro", 
+               "--input-forecast", 
+               f"/root/workspace/forecast-project/data/{station_id}forecast.xml", 
+               "--input-station", 
+               "/root/workspace/forecast-project/data/configuration.xml",
+               "--input-observation", 
+               "/root/workspace/forecast-project/data/observation.xml", 
+               "--output-roadcast", 
+               "/root/workspace/forecast-project/data/roadcast.xml"]
+    subprocess.run(command)

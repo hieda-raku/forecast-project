@@ -15,7 +15,7 @@ beijing_tz = timezone('Asia/Shanghai')
 
 def get_forecast_data(db_manager):
     # 读取XML配置文件
-    tree = ET.parse('./src/config.xml')
+    tree = ET.parse('src/config.xml')
     root = tree.getroot()
     
     # 获取预报地代码，预报时长，秘钥和输出类型
@@ -111,5 +111,3 @@ def insert_forecast_data(xml_data, db_manager):
 
     # 提交事务
     db_manager.commit()
-
-get_forecast_data(db_manager)

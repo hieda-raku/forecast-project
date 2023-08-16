@@ -4,6 +4,7 @@ import json
 import pytz
 import struct
 import xml.etree.ElementTree as ET
+from database import DatabaseManager, DatabaseError
 
 # 定义全局变量
 data_list = []
@@ -47,6 +48,30 @@ channel_to_field = {
             820: 'friction',
             900: 'road_condition',
         }
+}
+
+#roadcast对应值
+field_mapping = {
+    'roadcast-time' : 'forecast_time',
+    'hh' : 'hour_after',
+    'st' : 'road_surface_temperature',
+    'sst' : 'road_subsurface_temperature',
+    'at' : 'air_temperature',
+    'td' : 'dew_point',
+    'ws' : 'wind_speed',
+    'sn' : 'ice_quantity',
+    'ra' : 'rain_quantity',
+    'qp-sn' : 'total_snow_precipitation',
+    'qp-ra' : 'total_rain_precipitation',
+    'sf' : 'solar_flux',
+    'ir' : 'infra_red_flux',
+    'fv' : 'vapor_flux',
+    'fc' : 'sensible_heat',
+    'fa' : 'anthropogenic_flux',
+    'fg' : 'ground_exchange_flux',
+    'bb' : 'blackbody_effect',
+    'fp' : 'phase_change',
+    'rc' : 'road_condition'
 }
 
 def process_umb_data(hex_data,db_manager,registered_station_id):
@@ -161,7 +186,6 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
     # 将新的设备ID设置为上一次的设备ID
     last_device_id = new_device_id
 
-
 def process_json_data(json_data, db_manager):
     # 提取所有可能的缩写
     all_abbreviations = list(field_mapping.keys())
@@ -228,3 +252,48 @@ def process_station_data(xml_file, db_manager):
     db_manager.commit()
 
     print(f"站点 {road_station} 的记录已成功插入数据库")
+
+def process_roadcast(xml_data,db_file):
+
+    # 读取XML文件
+    with open(xml_data, 'r', encoding='utf-8') as file:
+        xml_data = file.read()
+
+    # 解析XML
+    try:
+        tree = ET.ElementTree(ET.fromstring(xml_data))
+    except ET.ParseError as e:
+        print(f"Parse error: {e}")
+        return
+    
+    db_manager = DatabaseManager(db_file)
+    db_manager.connect()
+    db_manager.create_tables()  # 如果还没有创建表
+
+    tree = ET.ElementTree(ET.fromstring(xml_data))
+    root = tree.getroot()
+
+    for prediction in tree.findall('.//prediction'):
+        prediction_data = {}
+        for xml_key, mapped_key in field_mapping.items():
+            element = prediction.find(xml_key)
+            if element is not None:
+                prediction_data[mapped_key] = float(element.text) if xml_key != 'roadcast-time' else element.text
+            else:
+                print(f"Element not found for key: {xml_key}")
+
+        # 在循环结束后构造查询并执行一次插入操作
+        columns = ', '.join(prediction_data.keys())
+        placeholders = ', '.join('?' * len(prediction_data))
+        query = f'INSERT INTO roadcast ({columns}) VALUES ({placeholders})'
+        db_manager.cursor.execute(query, tuple(prediction_data.values()))
+
+    print('存储完成')    
+    db_manager.commit()
+    db_manager.close()
+
+# 连接数据库
+db_file = 'data/data.sqlite'
+xml_data = 'data/RLfreeway_roadcast.xml'
+process_roadcast(xml_data,db_file)
+

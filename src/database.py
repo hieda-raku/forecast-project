@@ -71,6 +71,29 @@ class DatabaseManager:
                     atmospheric_pressure REAL,
                     cloud_cover REAL
                 );
+                CREATE TABLE IF NOT EXISTS roadcast (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    forecast_time TEXT,
+                    hour_after REAL,
+                    road_surface_temperature REAL,
+                    road_subsurface_temperature REAL,
+                    air_temperature REAL,
+                    dew_point REAL,
+                    wind_speed REAL,
+                    ice_quantity REAL,
+                    rain_quantity REAL,
+                    total_snow_precipitation REAL,
+                    total_rain_precipitation REAL,
+                    solar_flux REAL,
+                    infra_red_flux REAL,
+                    vapor_flux REAL,
+                    sensible_heat REAL,
+                    anthropogenic_flux REAL,
+                    ground_exchange_flux REAL,
+                    blackbody_effect REAL,
+                    phase_change REAL,
+                    road_condition REAL
+                );
             '''
 
             self.cursor.executescript(create_table_query)

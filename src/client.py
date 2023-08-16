@@ -1,33 +1,39 @@
-import json
 import socket
-import xml.etree.ElementTree as ET
+from xml.etree import ElementTree as ET
 
-def parse_and_send(xml_file, ip, port):
-    # 解析XML文件
-    tree = ET.parse(xml_file)
+def read_xml_file(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        return file.read()
+
+def tcp_client(file_path):
+    # 读取XML配置文件以获取服务器配置信息
+    tree = ET.parse('src/config.xml')
     root = tree.getroot()
 
-    # 创建一个字典来保存数据
-    data = {}
+    # 获取服务器地址和端口号
+    server_ip = root.find('clinet_host').text
+    server_port = int(root.find('clinet_port').text)
+    # 从本地文件读取XML数据
+    xml_data = read_xml_file(file_path)
+    
+    try:
+        # 创建TCP套接字
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    # 遍历XML文件的元素并将其添加到字典中
-    for child in root:
-        if child.tag == 'header':
-            data.update({grandchild.tag: grandchild.text for grandchild in child if grandchild.tag not in ['version', 'latitude', 'longitude', 'filetype', 'first-roadcast']})
-        elif child.tag == 'prediction-list':
-            data.update({grandchild.tag: grandchild.text for grandchild in child[0]})
+        # 发送XML数据到服务器
+        client_socket.sendto(xml_data.encode('utf-8'),(server_ip,server_port))
 
-    # 将字典转换为JSON字符串
-    json_data = json.dumps(data)
+        #确认发送
+        print('send success')
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # 关闭连接
+        client_socket.close()
 
-    # 创建一个socket对象
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# XML文件的本地路径
+file_path = 'data/RLfreeway_roadcast.xml'
 
-    # 连接到指定的IP地址和端口
-    s.connect((ip, port))
-
-    # 发送数据
-    s.sendall(json_data.encode('utf-8'))
-
-    # 关闭连接
-    s.close()
+# 启动客户端
+tcp_client(file_path)

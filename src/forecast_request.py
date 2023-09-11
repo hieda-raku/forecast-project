@@ -1,21 +1,13 @@
 import requests
-import time
 from datetime import datetime
-from pytz import timezone
-from database import DatabaseManager
+import pytz
 from xml.etree import ElementTree as ET
-
-# 创建数据库管理器
-db_manager = DatabaseManager('./data/data.sqlite')
-
-#连接数据库
-db_manager.connect()
-
-beijing_tz = timezone('Asia/Shanghai')
+# 定义北京时区
+beijing_tz = pytz.timezone('Asia/Shanghai')
 
 def get_forecast_data(db_manager):
     # 读取XML配置文件
-    tree = ET.parse('./src/config.xml')
+    tree = ET.parse('config.xml')
     root = tree.getroot()
     
     # 获取预报地代码，预报时长，秘钥和输出类型
@@ -33,7 +25,7 @@ def get_forecast_data(db_manager):
     }
     response = requests.get(url, params=params)
     response.encoding = 'utf-8'
-    data = response.text  
+    data = response.text
     insert_forecast_data(data,db_manager)
 
 
@@ -53,10 +45,11 @@ def insert_forecast_data(xml_data, db_manager):
 
         #处理时间数据
         given_time_str  = forecast.find("data_time").text
-        given_time  = datetime.strptime(given_time_str, "%Y-%m-%d %H:%M:%S")
-        given_time_with_tz = beijing_tz.localize(given_time)
-        forecast_time = given_time_with_tz.strftime("%Y-%m-%dT%H:%M:%S%z")
+        # 将字符串转换为datetime对象，并设置时区为北京时区
+        given_time = beijing_tz.localize(datetime.strptime(given_time_str, "%Y-%m-%d %H:%M:%S"))
 
+        # 将时间转换为UTC时间，并格式化为ISO 8601格式的字符串
+        forecast_time = given_time.astimezone(pytz.utc).isoformat()
         weather_code = forecast.find("code").text
         forecast_temperature = float(forecast.find("temp_fc").text)
         wind_speed = float(forecast.find("wind_speed").text)
@@ -65,7 +58,7 @@ def insert_forecast_data(xml_data, db_manager):
         precipitation = float(forecast.find("prec").text)
         cloud_cover = int(forecast.find("clouds").text) * 8 // 100  # 转换为八分量
         atmospheric_pressure = float(forecast.find("pressure").text)  # 从XML中提取大气压力
-
+        
         # 检查是否已经存在具有相同预报时间的记录
         existing_record = db_manager.cursor.execute(
             "SELECT * FROM forecast WHERE forecast_time = ? AND forecast_city = ?", (forecast_time, forecast_city)
@@ -111,5 +104,3 @@ def insert_forecast_data(xml_data, db_manager):
 
     # 提交事务
     db_manager.commit()
-
-get_forecast_data(db_manager)

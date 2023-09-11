@@ -1,9 +1,10 @@
 # data_processing.py
-import datetime
+from datetime import datetime, timezone
 import json
 import pytz
 import struct
 import xml.etree.ElementTree as ET
+from database import DatabaseManager, DatabaseError
 
 # 定义全局变量
 data_list = []
@@ -47,6 +48,30 @@ channel_to_field = {
             820: 'friction',
             900: 'road_condition',
         }
+}
+
+#roadcast对应值
+field_mapping = {
+    'roadcast-time' : 'forecast_time',
+    'hh' : 'hour_after',
+    'st' : 'road_surface_temperature',
+    'sst' : 'road_subsurface_temperature',
+    'at' : 'air_temperature',
+    'td' : 'dew_point',
+    'ws' : 'wind_speed',
+    'sn' : 'ice_quantity',
+    'ra' : 'rain_quantity',
+    'qp-sn' : 'total_snow_precipitation',
+    'qp-ra' : 'total_rain_precipitation',
+    'sf' : 'solar_flux',
+    'ir' : 'infra_red_flux',
+    'fv' : 'vapor_flux',
+    'fc' : 'sensible_heat',
+    'fa' : 'anthropogenic_flux',
+    'fg' : 'ground_exchange_flux',
+    'bb' : 'blackbody_effect',
+    'fp' : 'phase_change',
+    'rc' : 'road_condition'
 }
 
 def process_umb_data(hex_data,db_manager,registered_station_id):
@@ -127,21 +152,16 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
         del byte_list[0:datalan]
 
     if new_device_id == 9 and last_device_id == 7:
-        #对正确数据组进行处理
-        print(data_list)
         # 转换数据列表为字典
         data_list = {k: v for item in data_list for k, v in item.items()}
         # 添加 station_id 到值列表中
         data_list['station_id']  = registered_station_id
 
-        # 获取当前UTC时间
-        current_utc_time = datetime.datetime.utcnow()
+        # 获取当前UTC时间，并设置时区信息
+        current_utc_time = datetime.now(timezone.utc)
 
-        # 将当前UTC时间转换为北京时间
-        current_beijing_time = current_utc_time.replace(tzinfo=pytz.utc).astimezone(beijing_tz)
-
-        # 将时间格式化为ISO 8601格式的字符串
-        current_time_str = current_beijing_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        # 使用isoformat方法将时间格式化为ISO 8601格式，自动添加“Z”后缀
+        current_time_str = current_utc_time.isoformat()
         data_list['data_time'] = current_time_str
         # 构建插入查询语句
         fields = ', '.join(data_list.keys())
@@ -161,6 +181,44 @@ def process_umb_data(hex_data,db_manager,registered_station_id):
     # 将新的设备ID设置为上一次的设备ID
     last_device_id = new_device_id
 
+def process_roadcast(xml_data,db_file):
+
+    # 读取XML文件
+    with open(xml_data, 'r', encoding='utf-8') as file:
+        xml_data = file.read()
+
+    # 解析XML
+    try:
+        tree = ET.ElementTree(ET.fromstring(xml_data))
+    except ET.ParseError as e:
+        print(f"Parse error: {e}")
+        return
+    
+    db_manager = DatabaseManager(db_file)
+    db_manager.connect()
+    db_manager.create_tables()  # 如果还没有创建表
+
+    tree = ET.ElementTree(ET.fromstring(xml_data))
+    root = tree.getroot()
+
+    for prediction in tree.findall('.//prediction'):
+        prediction_data = {}
+        for xml_key, mapped_key in field_mapping.items():
+            element = prediction.find(xml_key)
+            if element is not None:
+                prediction_data[mapped_key] = float(element.text) if xml_key != 'roadcast-time' else element.text
+            else:
+                print(f"Element not found for key: {xml_key}")
+
+        # 在循环结束后构造查询并执行一次插入操作
+        columns = ', '.join(prediction_data.keys())
+        placeholders = ', '.join('?' * len(prediction_data))
+        query = f'INSERT INTO roadcast ({columns}) VALUES ({placeholders})'
+        db_manager.cursor.execute(query, tuple(prediction_data.values()))
+
+    print('存储完成')    
+    db_manager.commit()
+    db_manager.close()
 
 def process_json_data(json_data, db_manager):
     # 提取所有可能的缩写

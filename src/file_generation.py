@@ -64,9 +64,16 @@ def generate_input_forecast_xml(db_file, station_id, forecast_city, output_file)
 
         # 创建 prediction-list 元素
         prediction_list_element = ET.SubElement(root, "prediction-list")
+        
+        # 初始化累积降雨量
+        accumulated_rainfall = 0.0
 
         # 遍历数据生成 prediction 元素
         for row in data:
+
+            # 更新累积降雨量
+            accumulated_rainfall += float(row[9])
+
             # 创建 prediction 元素
             prediction_element = ET.SubElement(
                 prediction_list_element, "prediction")
@@ -83,10 +90,10 @@ def generate_input_forecast_xml(db_file, station_id, forecast_city, output_file)
             ET.SubElement(prediction_element, "at").text = str(temperature)
             #计算露点温度
             ET.SubElement(prediction_element, "td").text = str(calculate_dew_point(temperature, humidity))
-            #降雨量
-            ET.SubElement(prediction_element, "ra").text = str(row[9])
+            #降雨量 - 使用累积降雨量
+            ET.SubElement(prediction_element, "ra").text = str(accumulated_rainfall)
             # 降雪量，需要先判定是否有降雪,然后暂时用降雨量代替
-            ET.SubElement(prediction_element, "sn").text = str(row[9])
+            ET.SubElement(prediction_element, "sn").text = str('0.0')
             #风速
             ET.SubElement(prediction_element, "ws").text = str(row[6])
             #大气压
@@ -114,7 +121,7 @@ def generate_rwis_observation_xml(db_file, station_id, output_file):
 
     try:
         # 计算12小时之前的时间戳
-        time_threshold = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+        time_threshold = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
         time_threshold_str = time_threshold.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         # 查询数据库获取过去12个小时内的数据
@@ -218,22 +225,22 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
         # 添加 production-date 元素
         production_date_element = ET.SubElement(
             header_element, "production-date")
-        production_date_element.text = data[2]
+        production_date_element.text = data[3]
 
         # 创建 coordinate 元素
         coordinate_element = ET.SubElement(header_element, "coordinate")
 
         # 添加 latitude 元素
         latitude_element = ET.SubElement(coordinate_element, "latitude")
-        latitude_element.text = str(data[3])
+        latitude_element.text = str(data[4])
 
         # 添加 longitude 元素
         longitude_element = ET.SubElement(coordinate_element, "longitude")
-        longitude_element.text = str(data[4])
+        longitude_element.text = str(data[5])
 
         # 添加 station-type 元素
         station_type_element = ET.SubElement(header_element, "station-type")
-        station_type_element.text = data[5]
+        station_type_element.text = data[6]
 
         # 创建 roadlayer-list 元素
         roadlayer_list_element = ET.SubElement(root, "roadlayer-list")
@@ -275,8 +282,17 @@ def generate_rwis_configuration_xml(db_file, station_id, output_file):
             db_manager.close()
 
 
-def run_metro():
-    command = ["python3", "/root/workspace/metro/usr/bin/metro", "--input-forecast", "/root/workspace/forecast-project/data/forecast.xml", "--input-station", "/home/hieda_raku/local/workspace/forecast-project/data/configuration.xml","--input-observation", "/root/workspace/forecast-project/data/observation.xml", "--output-roadcast", "/root/workspace/forecast-project/data/roadcast.xml"]
+def run_metro(station_id):
+    command = ["python3", 
+               "/root/workspace/metro/usr/bin/metro", 
+               "--input-forecast", 
+               f"/root/workspace/forecast-project/data/{station_id}_forecast.xml", 
+               "--input-station", 
+               f"/root/workspace/forecast-project/data/{station_id}_configuration.xml",
+               "--input-observation", 
+               f"/root/workspace/forecast-project/data/{station_id}_observation.xml", 
+               "--output-roadcast", 
+               f"/root/workspace/forecast-project/data/{station_id}_roadcast.xml"]
     try:
         subprocess.run(command)
         # subprocess.run(command, shell=True, check=True)

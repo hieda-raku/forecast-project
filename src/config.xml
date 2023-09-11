@@ -3,7 +3,12 @@
     <!--服务器设置-->
     <host>0.0.0.0</host>
     <port>18120</port>
-    <db_file>data/data.sqlite</db_file>
+    <db_file>../data/data.sqlite</db_file>
+    <!--客户端设置-->
+    <clinet_host>3q421e129.goho.co</clinet_host>
+    <clinet_port>21822</clinet_port>
+    <clinet_host_2>118.195.238.196</clinet_host_2>
+    <clinet_port_2>28089</clinet_port_2>
     <!--预测数据-->
     <areacode>101120712</areacode>
     <hours>24</hours>

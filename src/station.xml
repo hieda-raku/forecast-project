@@ -1,6 +1,5 @@
 <?xml version="1.0"?>
-<station>
-  
+<station> 
 <header>
       <filetype>rwis-configuration</filetype>
       <version>1.0</version>
@@ -8,12 +7,11 @@
       <station_city>任城</station_city>
       <production_date>2023-07-06T00:00Z</production_date>
       <coordinate>
-          <latitude>31.31</latitude>
-          <longitude>121.61</longitude>
+          <latitude>35.49</latitude>
+          <longitude>116.42</longitude>
       </coordinate>
-      <station_type>road</station_type>
+      <station_type>bridge</station_type>
 </header>
-
   <roadlayer_list>
       <roadlayer>
           <position>1</position>

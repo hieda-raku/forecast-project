@@ -14,11 +14,12 @@ class DatabaseManager:
         try:
             self.conn = sqlite3.connect(self.db_file)
             self.cursor = self.conn.cursor()
-            # Enable foreign key support
             self.cursor.execute("PRAGMA foreign_keys = ON;")
+            print(f"Connected to database {self.db_file}")  # 添加这行
         except sqlite3.Error as e:
             print(f"Database error: {e}")
             return None
+
 
 
     def create_tables(self):
@@ -70,6 +71,29 @@ class DatabaseManager:
                     precipitation REAL,
                     atmospheric_pressure REAL,
                     cloud_cover REAL
+                );
+                CREATE TABLE IF NOT EXISTS roadcast (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    forecast_time TEXT,
+                    hour_after REAL,
+                    road_surface_temperature REAL,
+                    road_subsurface_temperature REAL,
+                    air_temperature REAL,
+                    dew_point REAL,
+                    wind_speed REAL,
+                    ice_quantity REAL,
+                    rain_quantity REAL,
+                    total_snow_precipitation REAL,
+                    total_rain_precipitation REAL,
+                    solar_flux REAL,
+                    infra_red_flux REAL,
+                    vapor_flux REAL,
+                    sensible_heat REAL,
+                    anthropogenic_flux REAL,
+                    ground_exchange_flux REAL,
+                    blackbody_effect REAL,
+                    phase_change REAL,
+                    road_condition REAL
                 );
             '''
 

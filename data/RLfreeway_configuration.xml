@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<station>
+    <header>
+        <filetype>rwis-configuration</filetype>
+        <version>1.0</version>
+        <road-station>RLfreeway</road-station>
+        <production-date>2023-07-06T00:00Z</production-date>
+        <coordinate>
+            <latitude>35.49</latitude>
+            <longitude>116.42</longitude>
+        </coordinate>
+        <station-type>bridge</station-type>
+    </header>
+    <roadlayer-list>
+        <roadlayer>
+            <position>1</position>
+            <type>asphalt</type>
+            <thickness>0.25</thickness>
+        </roadlayer>
+    </roadlayer-list>
+</station>

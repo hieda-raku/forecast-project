@@ -286,3 +286,48 @@ def process_station_data(xml_file, db_manager):
     db_manager.commit()
 
     print(f"站点 {road_station} 的记录已成功插入数据库")
+
+def process_roadcast(xml_data,db_file):
+
+    # 读取XML文件
+    with open(xml_data, 'r', encoding='utf-8') as file:
+        xml_data = file.read()
+
+    # 解析XML
+    try:
+        tree = ET.ElementTree(ET.fromstring(xml_data))
+    except ET.ParseError as e:
+        print(f"Parse error: {e}")
+        return
+    
+    db_manager = DatabaseManager(db_file)
+    db_manager.connect()
+    db_manager.create_tables()  # 如果还没有创建表
+
+    tree = ET.ElementTree(ET.fromstring(xml_data))
+    root = tree.getroot()
+
+    for prediction in tree.findall('.//prediction'):
+        prediction_data = {}
+        for xml_key, mapped_key in field_mapping.items():
+            element = prediction.find(xml_key)
+            if element is not None:
+                prediction_data[mapped_key] = float(element.text) if xml_key != 'roadcast-time' else element.text
+            else:
+                print(f"Element not found for key: {xml_key}")
+
+        # 在循环结束后构造查询并执行一次插入操作
+        columns = ', '.join(prediction_data.keys())
+        placeholders = ', '.join('?' * len(prediction_data))
+        query = f'INSERT INTO roadcast ({columns}) VALUES ({placeholders})'
+        db_manager.cursor.execute(query, tuple(prediction_data.values()))
+
+    print('存储完成')    
+    db_manager.commit()
+    db_manager.close()
+
+# 连接数据库
+db_file = 'data/data.sqlite'
+xml_data = 'data/RLfreeway_roadcast.xml'
+process_roadcast(xml_data,db_file)
+

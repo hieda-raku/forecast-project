@@ -1,7 +1,7 @@
 import aiohttp
 
 API_URL = "http://gfapi.mlogcn.com/weather/v001/hour"
-API_KEY = "Hh9rZGMHGJWFAB0nSUU5NKg6PW9ZD7nJ"  # 请替换为您的API密钥
+API_KEY = ""  # 请替换为您的API密钥
 
 
 class WeatherForecast:

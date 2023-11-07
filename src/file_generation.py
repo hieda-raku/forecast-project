@@ -1,301 +1,247 @@
 import datetime
 import math
-import json
-import subprocess
 import xml.etree.ElementTree as ET
-from database import DatabaseManager, DatabaseError
+from database import AsyncDatabaseManager, DataAggregator
 
 
-def calculate_dew_point(temperature, humidity):
-    A = 17.27
-    B = 237.7
-    alpha = ((A * temperature) / (B + temperature)) + math.log(humidity/100.0)
-    dew_point = (B * alpha) / (A - alpha)
+def calculate_dew_point(temp, rh):
+    a = 17.27
+    b = 237.7
+    alpha = math.log(rh / 100.0) + (a * temp) / (b + temp)
+    dew_point = (b * alpha) / (a - alpha)
     return round(dew_point, 2)
 
-def generate_input_forecast_xml(db_file, station_id, forecast_city, output_file):
-    # 连接数据库
-    db_manager = DatabaseManager(db_file)
-    db_manager.connect()
 
-    try:
-        # 获取当前时间
-        current_time = datetime.datetime.now()
-
-        # 找到最接近当前时间的整点时间
-        current_hour = current_time.replace(minute=0, second=0, microsecond=0)
-
-        # 将整点时间格式化为与数据库中的时间格式相匹配的字符串
-        start_time = current_hour.strftime("%Y-%m-%d %H:%M:%S")
-
-        # 查询数据库获取数据
-        query = """SELECT * FROM forecast 
-                WHERE forecast_time >= ? AND forecast_city = ? 
-                ORDER BY forecast_time ASC"""
-        data = db_manager.cursor.execute(query, (start_time, forecast_city)).fetchall()
+def check_data_continuity(forecast_data):
+    continuous_data = []
+    for i in range(len(forecast_data) - 1):
+        current_data_time = forecast_data[i][10]  # 假设data_time是第10个字段
+        next_data_time = forecast_data[i + 1][10]
+        time_difference = next_data_time - current_data_time
+        if time_difference.total_seconds() > 3600:  # 如果时间差超过1小时
+            break
+        continuous_data.append(forecast_data[i])
+        # 添加最后一个数据点
+    if forecast_data:
+        continuous_data.append(forecast_data[-1])
+    return continuous_data
 
 
-        if len(data) < 2:
-            print("数据库中的数据不足，无法生成输入文件")
-            return
+class MetroXMLGenerator:
+    def __init__(self, db_manager):
+        self.db_manager = db_manager  # 初始化数据库管理器
+        self.aggregator = DataAggregator(db_manager)
 
-        # 创建根元素
-        root = ET.Element("forecast")
+    async def generate_observation_xml(
+        self, road_condition_station_id, meteorology_station_id=None
+    ):
+        # 调整生成的观测数据的时间
+        hours = 6
 
-        # 创建 header 元素
-        header_element = ET.SubElement(root, "header")
+        if meteorology_station_id:
+            aggregated_data = await self.aggregator.aggregate_data(
+                hours, road_condition_station_id, meteorology_station_id
+            )
+        else:
+            aggregated_data = await self.aggregator.aggregate_data(
+                hours, road_condition_station_id
+            )
 
-        # 添加 production-date 元素
-        production_date_element = ET.SubElement(
-            header_element, "production-date")
-        production_date_element.text = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
+        # 创建观测的XML元素
+        root = self._create_observation_element(aggregated_data)
 
-        # 添加 version 元素
-        version_element = ET.SubElement(header_element, "version")
-        version_element.text = "1.1"
+        if road_condition_station_id == 'RL9':
+            self._save_to_file(root, f"RL001_observation")
+        else:
+            self._save_to_file(root, f"{road_condition_station_id}_observation")
 
-        # 添加 filetype 元素
-        filetype_element = ET.SubElement(header_element, "filetype")
-        filetype_element.text = "forecast"
-
-        # 添加 station-id 元素
-        station_id_element = ET.SubElement(header_element, "station-id")
-        station_id_element.text = station_id
-
-        # 创建 prediction-list 元素
-        prediction_list_element = ET.SubElement(root, "prediction-list")
-        
-        # 初始化累积降雨量
-        accumulated_rainfall = 0.0
-
-        # 遍历数据生成 prediction 元素
-        for row in data:
-
-            # 更新累积降雨量
-            accumulated_rainfall += float(row[9])
-
-            # 创建 prediction 元素
-            prediction_element = ET.SubElement(
-                prediction_list_element, "prediction")
-
-            # 添加 forecast-time 元素
-            forecast_time_element = ET.SubElement(
-                prediction_element, "forecast-time")
-            forecast_time_element.text = row[2]
-
-            # 添加具体的天气元素，使用从数据库中获取的数据
-            temperature = int(row[5])
-            humidity = int(row[8])
-            #空气温度
-            ET.SubElement(prediction_element, "at").text = str(temperature)
-            #计算露点温度
-            ET.SubElement(prediction_element, "td").text = str(calculate_dew_point(temperature, humidity))
-            #降雨量 - 使用累积降雨量
-            ET.SubElement(prediction_element, "ra").text = str(accumulated_rainfall)
-            # 降雪量，需要先判定是否有降雪,然后暂时用降雨量代替
-            ET.SubElement(prediction_element, "sn").text = str('0.0')
-            #风速
-            ET.SubElement(prediction_element, "ws").text = str(row[6])
-            #大气压
-            ET.SubElement(prediction_element, "ap").text = str(row[10])
-            #云量
-            ET.SubElement(prediction_element, "cc").text = str(int(row[11]))
-
-        # 创建 XML 树并保存到文件
-        xml_tree = ET.ElementTree(root)
-        xml_tree.write(output_file, encoding="utf-8", xml_declaration=True)
-
-        print(f"已生成输入文件: {output_file}")
-
-    except DatabaseError as e:
-        print(f"数据库错误: {str(e)}")
-
-    finally:
-        if db_manager and db_manager.conn:
-            db_manager.close()
- 
-def generate_rwis_observation_xml(db_file, station_id, output_file):
-    # 连接数据库
-    db_manager = DatabaseManager(db_file)
-    db_manager.connect()
-
-    try:
-        # 计算12小时之前的时间戳
-        time_threshold = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-        time_threshold_str = time_threshold.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        # 查询数据库获取过去12个小时内的数据
-        data = db_manager.cursor.execute(
-            "SELECT * FROM observation WHERE station_id = ? AND data_time >= ? ORDER BY data_time ASC",
-            (station_id, time_threshold_str)).fetchall()
-
-        if len(data) < 1:
-            print("数据库中没有相关数据，无法生成观测文件")
-            return
-
-        # 创建根元素
+    def _create_observation_element(self, observation_data):
+        # 创建observation根元素
         root = ET.Element("observation")
+        # 添加header子元素
+        header_elem = ET.SubElement(root, "header")
+        # 设置header的子元素属性
+        ET.SubElement(header_elem, "filetype").text = "rwis-observation"
+        ET.SubElement(header_elem, "version").text = "1.0"
+        ET.SubElement(
+            header_elem, "road-station"
+        ).text = "third-party-observation"  # 根据需要更改
+        
+        # 处理production-date
+        current_time = datetime.datetime.now() - datetime.timedelta(hours=8)
+        ET.SubElement(
+            header_elem, "production-date"
+        ).text = current_time.strftime("%Y-%m-%dT%H:%M") + "Z"
 
-        # 创建 header 元素
-        header_element = ET.SubElement(root, "header")
+        # 创建每个观测数据的列表
+        measure_list_elem = ET.SubElement(root, "measure-list")
+        for data in observation_data:
+            measure_elem = ET.SubElement(measure_list_elem, "measure")
+            observation_time = ET.SubElement(measure_elem, "observation-time")
+            
+            # 转换时间戳为datetime对象，然后减去8小时
+            adjusted_time = datetime.datetime.fromtimestamp(data.pop("timestamp") / 1000) - datetime.timedelta(hours=8)
+            
+            # 格式化时间，只保留到分钟，并转换为UTC格式
+            observation_time.text = adjusted_time.strftime("%Y-%m-%dT%H:%M") + "Z"
 
-        # 添加 filetype 元素
-        filetype_element = ET.SubElement(header_element, "filetype")
-        filetype_element.text = "rwis-observation"
+            if "pi" in data:
+                ET.SubElement(measure_elem, "pi").text = "1" if data["pi"] > 0 else "0"
+                data.pop('pi')
 
-        # 添加 version 元素
-        version_element = ET.SubElement(header_element, "version")
-        version_element.text = "1.0"
+            for key, value in data.items():
+                ET.SubElement(measure_elem, key).text = str(value)
+            
+            ET.SubElement(measure_elem, "sst").text = str(data["st"])
 
-        # 添加 road-station 元素
-        road_station_element = ET.SubElement(header_element, "road-station")
-        road_station_element.text = station_id
+        return root
 
-        # 创建 measure-list 元素
-        measure_list_element = ET.SubElement(root, "measure-list")
 
-        # 遍历数据生成 measure 元素
-        for row in data:
-            # 创建 measure 元素
-            measure_element = ET.SubElement(measure_list_element, "measure")
 
-            # 添加 observation-time 元素
-            observation_time_element = ET.SubElement(
-                measure_element, "observation-time")
-            observation_time_element.text = row[2]
+    async def generate_forecast_xml(self, station_id, district_code):
+        # 从数据库中获取气象预报数据
+        forecast_data = await self.db_manager.get_weather_forecasts(district_code)
+        # 检查数据的连续性
+        continuous_data = check_data_continuity(forecast_data)
+        # 创建预测的XML元素
+        root = self._create_forecast_element(continuous_data)
+        # 保存XML到文件
+        self._save_to_file(root, f"{station_id}_forecast")
 
-            # 添加具体的观测元素，使用从数据库中获取的数据
-            ET.SubElement(measure_element, "at").text = str(row[3])
-            ET.SubElement(measure_element, "td").text = str(row[4])
-            if row[10] == 0 :
-                ET.SubElement(measure_element, "pi").text = '0'
+    def _create_forecast_element(self, forecast_data):
+        # 创建forecast根元素
+        root = ET.Element("forecast")
+        # 添加header子元素
+        header_elem = ET.SubElement(root, "header")
+        # 设置header的子元素属性
+        ET.SubElement(header_elem, "filetype").text = "forecast"
+        ET.SubElement(header_elem, "version").text = "1.1"
+        ET.SubElement(header_elem, "station-id").text = "third-party-forecast"
+        
+        # 处理production-date
+        current_time = datetime.datetime.now() - datetime.timedelta(hours=8)
+        ET.SubElement(
+            header_elem, "production-date"
+        ).text = current_time.strftime("%Y-%m-%dT%H:%M") + "Z"
+
+        # 创建每小时的预测列表
+        hourly_fcst_list_elem = ET.SubElement(root, "prediction-list")
+        for data in forecast_data:
+            hourly_fcst_elem = ET.SubElement(hourly_fcst_list_elem, "prediction")
+
+            # 判断sn的值
+            hour_of_day = data[10].hour
+            if 13 <= hour_of_day <= 17:
+                sn_value = str(data[7])  # 使用降雨量
             else:
-                ET.SubElement(measure_element, "pi").text = '1'
-            ET.SubElement(measure_element, "ws").text = str(row[7])
-            ET.SubElement(measure_element, "sc").text = str(row[18])
-            ET.SubElement(measure_element, "st").text = str(row[12])
-            ET.SubElement(measure_element, "sst").text = str(row[12])
+                sn_value = "0"
 
-        # 创建 XML 树并保存到文件
-        xml_tree = ET.ElementTree(root)
-        xml_tree.write(output_file, encoding="utf-8", xml_declaration=True)
+            # 将cc从百分比转换为8分量
+            cc_value = str(int(data[9] * 8 / 100))
+            # 处理forecast-time
+            forecast_time = data[10] - datetime.timedelta(hours=8)
+            elements = [
+                ("forecast-time", forecast_time.strftime("%Y-%m-%dT%H:%M") + "Z"),
+                ("at", str(data[3])),
+                ("td", str(calculate_dew_point(data[3], data[6]))),
+                ("ws", str(data[4])),
+                ("sn", sn_value),
+                ("ra", str(data[7])),
+                ("ap", str(data[8])),
+                ("cc", cc_value),
+            ]
+            for name, text in elements:
+                ET.SubElement(hourly_fcst_elem, name).text = text
 
-        print(f"已生成观测文件: {output_file}")
-
-    except DatabaseError as e:
-        print(f"数据库错误: {str(e)}")
-
-    finally:
-        if db_manager and db_manager.conn:
-            db_manager.close()
+        return root
 
 
-def generate_rwis_configuration_xml(db_file, station_id, output_file):
-    # 连接数据库
-    db_manager = DatabaseManager(db_file)
-    db_manager.connect()
+    async def generate_station_xml(self, station_id):
+        # 从数据库中获取站点和路面层数据
+        station_data = await self.db_manager.get_station_data(station_id)
+        roadlayer_data = await self.db_manager.get_roadlayer_data(station_id)
+        # 创建站点的XML元素
+        root = self._create_station_element(station_data, roadlayer_data)
+        # 保存XML到文件
+        self._save_to_file(root, f"{station_id}_configuration")
 
-    try:
-        # 查询数据库获取数据
-        data = db_manager.cursor.execute(
-            "SELECT * FROM stations WHERE station_id = ?", (station_id,)).fetchone()
-
-        if data is None:
-            print("数据库中没有相关数据，无法生成配置文件")
-            return
-
-        # 创建根元素
+    def _create_station_element(self, station_data, roadlayer_data):
+        # 创建站点的根元素
         root = ET.Element("station")
+        # 添加header和路面层列表子元素
+        root.append(self._create_header_element(station_data))
+        root.append(self._create_roadlayer_list_element(roadlayer_data))
+        return root
 
-        # 创建 header 元素
-        header_element = ET.SubElement(root, "header")
+    def _create_header_element(self, station_data):
+        # 创建header元素并设置其属性
+        header = ET.Element("header")
+        elements = [
+            ("filetype", "rwis-configuration"),
+            ("version", "1.0"),
+            ("road-station", station_data["station_id"]),
+            ("production-date", station_data["production_date"].isoformat()),
+        ]
+        for name, text in elements:
+            ET.SubElement(header, name).text = text
 
-        # 添加 filetype 元素
-        filetype_element = ET.SubElement(header_element, "filetype")
-        filetype_element.text = "rwis-configuration"
+        # 设置坐标子元素
+        coordinate = ET.SubElement(header, "coordinate")
+        ET.SubElement(coordinate, "latitude").text = str(station_data["latitude"])
+        ET.SubElement(coordinate, "longitude").text = str(station_data["longitude"])
+        ET.SubElement(header, "station-type").text = station_data["station_type"]
+        return header
 
-        # 添加 version 元素
-        version_element = ET.SubElement(header_element, "version")
-        version_element.text = "1.0"
+    def _create_roadlayer_list_element(self, roadlayer_data):
+        # 创建路面层列表元素
+        roadlayer_list = ET.Element("roadlayer-list")
+        for layer in roadlayer_data:
+            roadlayer = ET.SubElement(roadlayer_list, "roadlayer")
+            elements = [
+                ("position", str(layer["position"])),
+                ("type", layer["type"]),
+                ("thickness", str(layer["thickness"])),
+            ]
+            for name, text in elements:
+                ET.SubElement(roadlayer, name).text = text
+        return roadlayer_list
 
-        # 添加 road-station 元素
-        road_station_element = ET.SubElement(header_element, "road-station")
-        road_station_element.text = data[1]
+    def _save_to_file(self, root, filename):
+        # 将XML内容保存到文件
+        tree = ET.ElementTree(root)
+        file_path = f"../data/{filename}.xml"
+        with open(file_path, "wb") as file:
+            tree.write(file)
 
-        # 添加 production-date 元素
-        production_date_element = ET.SubElement(
-            header_element, "production-date")
-        production_date_element.text = data[3]
-
-        # 创建 coordinate 元素
-        coordinate_element = ET.SubElement(header_element, "coordinate")
-
-        # 添加 latitude 元素
-        latitude_element = ET.SubElement(coordinate_element, "latitude")
-        latitude_element.text = str(data[4])
-
-        # 添加 longitude 元素
-        longitude_element = ET.SubElement(coordinate_element, "longitude")
-        longitude_element.text = str(data[5])
-
-        # 添加 station-type 元素
-        station_type_element = ET.SubElement(header_element, "station-type")
-        station_type_element.text = data[6]
-
-        # 创建 roadlayer-list 元素
-        roadlayer_list_element = ET.SubElement(root, "roadlayer-list")
-
-        # 查询数据库获取 road layers 数据
-        road_layers_json = db_manager.cursor.execute(
-            "SELECT road_layers FROM stations WHERE station_id = ?", (station_id,)).fetchone()[0]
-        road_layers_data = json.loads(road_layers_json)
-
-        # 遍历数据生成 roadlayer 元素
-        for road_layer in road_layers_data:
-            # 创建 roadlayer 元素
-            roadlayer_element = ET.SubElement(
-                roadlayer_list_element, "roadlayer")
-
-            # 添加 position 元素
-            position_element = ET.SubElement(roadlayer_element, "position")
-            position_element.text = str(road_layer['position'])
-
-            # 添加 type 元素
-            type_element = ET.SubElement(roadlayer_element, "type")
-            type_element.text = road_layer['type']
-
-            # 添加 thickness 元素
-            thickness_element = ET.SubElement(roadlayer_element, "thickness")
-            thickness_element.text = str(road_layer['thickness'])
-
-        # 创建 XML 树并保存到文件
-        xml_tree = ET.ElementTree(root)
-        xml_tree.write(output_file, encoding="utf-8", xml_declaration=True)
-
-        print(f"已生成配置文件: {output_file}")
-
-    except DatabaseError as e:
-        print(f"数据库错误: {str(e)}")
-
-    finally:
-        if db_manager and db_manager.conn:
-            db_manager.close()
+import asyncio
 
 
-def run_metro(station_id):
-    command = ["python3", 
-               "/root/workspace/metro/usr/bin/metro", 
-               "--input-forecast", 
-               f"/root/workspace/forecast-project/data/{station_id}_forecast.xml", 
-               "--input-station", 
-               f"/root/workspace/forecast-project/data/{station_id}_configuration.xml",
-               "--input-observation", 
-               f"/root/workspace/forecast-project/data/{station_id}_observation.xml", 
-               "--output-roadcast", 
-               f"/root/workspace/forecast-project/data/{station_id}_roadcast.xml"]
-    try:
-        subprocess.run(command)
-        # subprocess.run(command, shell=True, check=True)
-        print("Metro命令执行成功！")
-    except subprocess.CalledProcessError as e:
-        print(f"Metro命令执行失败：{e}")
+async def test_generate_station_xml():
+    # 创建数据库管理器实例并连接
+    db_manager = AsyncDatabaseManager(
+        user="hiedaraku",
+        password="Henry970226",
+        db="weather_station_db",
+        host="localhost",
+        port=3306,
+    )
+    await db_manager.connect()
+
+    # 创建MetroXMLGenerator实例
+    xml_generator = MetroXMLGenerator(db_manager)
+
+    # 生成指定站点的XML文件
+    station_id = "RL001"  # 你可以替换为你想要的站点ID
+    await xml_generator.generate_station_xml(station_id)
+    district_code = "101120712"
+    await xml_generator.generate_forecast_xml(station_id, district_code)
+    station_type = "RL9"
+    station_type_2 = "RL7"
+    await xml_generator.generate_observation_xml(station_type, station_type_2)
+
+    # 关闭数据库连接
+    await db_manager.close()
+
+
+# 运行测试函数
+asyncio.run(test_generate_station_xml())

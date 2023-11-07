@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<station_list>
+    <station>
+        <station_id>RL001</station_id>
+        <production_date>2023-10-01 00:00:00</production_date>
+        <district_code>101120712</district_code>
+        <coordinate>
+            <latitude>35.50</latitude>
+            <longitude>116.42</longitude>
+        </coordinate>
+        <station_type>road</station_type>
+        <roadlayer_list>
+            <roadlayer>
+                <position>1</position>
+                <type>asphalt</type>
+                <thickness>0.25</thickness>
+            </roadlayer>
+        </roadlayer_list>
+    </station>
+    <station>
+        <station_id>ZK001</station_id>
+        <production_date>2023-10-01 00:00:00</production_date>
+        <district_code>101120111</district_code>
+        <city></city>
+        <coordinate>
+            <latitude>36.61</latitude>
+            <longitude>117.28</longitude>
+        </coordinate>
+        <station_type>road</station_type>
+        <roadlayer_list>
+            <roadlayer>
+                <position>1</position>
+                <type>asphalt</type>
+                <thickness>0.25</thickness>
+            </roadlayer>
+        </roadlayer_list>
+    </station>
+    <station>
+        <station_id>PL001</station_id>
+        <production_date>2023-10-01 00:00:00</production_date>
+        <district_code>101120111</district_code>
+        <city></city>
+        <coordinate>
+            <latitude>36.621</latitude>
+            <longitude>117.25</longitude>
+        </coordinate>
+        <station_type>road</station_type>
+        <roadlayer_list>
+            <roadlayer>
+                <position>1</position>
+                <type>asphalt</type>
+                <thickness>0.25</thickness>
+            </roadlayer>
+        </roadlayer_list>
+    </station>
+</station_list>

@@ -1,33 +1,26 @@
+import datetime
 import socket
-from xml.etree import ElementTree as ET
+import json
 
-def read_xml_file(file_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
-        return file.read()
 
-def tcp_client(file_path,ip,port):
-    
-    # 获取服务器地址和端口号
-    server_ip = ip
-    server_port = port
-    # 从本地文件读取XML数据
-    xml_data = read_xml_file(file_path)
+def send_data(host, port, station_id, production_date, predictions, protocol="tcp"):
+    # 确保production_date是字符串格式
+    production_date_str = production_date.isoformat() if isinstance(production_date, datetime.datetime) else production_date
 
-    try:
-        # 创建TCP套接字
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # 构建包含station_id和production_date的数据字典
+    data_to_send = {
+        "station_id": station_id,
+        "production_date": production_date_str,  # 使用字符串格式的日期
+        "predictions": predictions
+    }
+    # 将数据序列化为JSON字符串
+    json_data = json.dumps(data_to_send).encode('utf-8')
+    print("datasented")
 
-        # 连接到服务器
-        client_socket.connect((server_ip, server_port))
-
-        # 发送XML数据到服务器
-        client_socket.send(xml_data.encode('utf-8'))
-
-        #确认发送
-        print('send success')
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    finally:
-        # 关闭连接
-        client_socket.close()
+    # 创建socket对象
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM if protocol == "tcp" else socket.SOCK_DGRAM) as sock:
+        if protocol == "tcp":
+            sock.connect((host, port))
+            sock.sendall(json_data)
+        else:  # UDP does not need to establish a connection
+            sock.sendto(json_data, (host, port))
